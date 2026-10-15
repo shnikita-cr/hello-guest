@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"hello-guest/internal/store"
+	"hello-guest/internal/timepad"
 )
 
 type Config struct {
@@ -93,6 +94,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/undo", s.authed(s.handleUndo))
 	s.mux.HandleFunc("/api/guest", s.authed(s.handleGuest))
 	s.mux.HandleFunc("/api/import", s.authed(s.handleImport))
+	s.mux.HandleFunc("/api/refresh", s.authed(s.handleRefresh))
 	s.mux.HandleFunc("/api/stats", s.authed(s.handleStats))
 	s.mux.HandleFunc("/", s.handleIndex)
 }
@@ -235,12 +237,52 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "total": len(guests), "added": added, "updated": updated})
 }
 
+func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	var req struct {
+		Event     string `json:"event"`
+		TimepadID int64  `json:"timepad_id"`
+		Token     string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	if req.Token == "" {
+		req.Token = os.Getenv("TIMEPAD_TOKEN")
+	}
+	if req.Token == "" {
+		writeErr(w, http.StatusBadRequest, "no token")
+		return
+	}
+	if req.Event == "" || req.TimepadID == 0 {
+		writeErr(w, http.StatusBadRequest, "event and timepad_id required")
+		return
+	}
+	guests, err := timepad.New(req.Token).FetchOrders(req.TimepadID)
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	for i := range guests {
+		guests[i].Event = req.Event
+	}
+	added, updated, err := s.store.Upsert(guests)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "total": len(guests), "added": added, "updated": updated})
+}
+
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	ev := r.URL.Query().Get("event")
 	total, arrived := s.store.Count(ev)
 	writeJSON(w, map[string]any{"event": ev, "total": total, "arrived": arrived})
 }
-
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
