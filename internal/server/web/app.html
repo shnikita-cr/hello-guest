@@ -153,6 +153,7 @@ async function submitPin(){
 }
 
 function show(id){['app','eventPane','addPane','statsPane','srcPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
+function showTab(){closePanes();}
 function closePanes(){show('app');}
 
 async function boot(){
