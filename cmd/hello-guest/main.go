@@ -17,11 +17,18 @@ import (
 	"hello-guest/internal/store"
 )
 
+var version = "dev"
+
 func main() {
 	addr := flag.String("addr", "", "listen address (default :80, fallback :8080)")
 	data := flag.String("data", "./data", "data directory")
 	name := flag.String("name", "hello-guest", "mDNS hostname (<name>.local)")
+	showVer := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
+	if *showVer {
+		fmt.Println(version)
+		return
+	}
 
 	if err := os.MkdirAll(*data, 0o755); err != nil {
 		log.Fatal(err)
