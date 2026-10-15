@@ -70,6 +70,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
     <button class="on" id="tabList" onclick="showTab('list')">Список</button>
     <button id="tabAdd" onclick="openAdd()">+ Гость</button>
     <button id="tabStats" onclick="openStats()">Статистика</button>
+    <button id="tabSrc" onclick="openSrc()">Источники</button>
   </div>
 </div>
 
@@ -103,6 +104,32 @@ input:focus,select:focus{outline:2px solid var(--acc)}
   <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
 </div>
 
+<div id="srcPane" class="pane hide">
+  <h2>Источники</h2>
+  <p style="color:var(--mut);font-size:14px">Импорт выгрузки Timepad (CSV) или подтягивание через API в текущее мероприятие.</p>
+  <div class="field">
+    <label>Мероприятие (куда загружать)</label>
+    <input id="srcEvent" placeholder="напр. conf-2026">
+  </div>
+  <div class="field">
+    <label>Файл выгрузки CSV</label>
+    <input id="srcFile" type="file" accept=".csv,text/csv">
+  </div>
+  <button class="primary" onclick="doImport()">Импортировать файл</button>
+  <h2 style="font-size:16px;margin-top:24px">Timepad API</h2>
+  <div class="field">
+    <label>ID события Timepad</label>
+    <input id="srcTpid" type="number" inputmode="numeric">
+  </div>
+  <div class="field">
+    <label>Токен (или пусто — из TIMEPAD_TOKEN)</label>
+    <input id="srcToken" type="password">
+  </div>
+  <button class="primary" onclick="doRefresh()">Подтянуть из Timepad</button>
+  <div id="srcLog" class="err" style="color:var(--ok)"></div>
+  <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
+</div>
+
 <script>
 let pin=localStorage.getItem('hg_pin')||'';
 let event=localStorage.getItem('hg_event')||'';
@@ -125,7 +152,7 @@ async function submitPin(){
   catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
 }
 
-function show(id){['app','eventPane','addPane','statsPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
+function show(id){['app','eventPane','addPane','statsPane','srcPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
 function closePanes(){show('app');}
 
 async function boot(){
@@ -227,6 +254,43 @@ async function flushQueue(){
 }
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
+
+function openSrc(){
+  show('srcPane');
+  document.getElementById('srcEvent').value=event||'';
+  document.getElementById('srcLog').textContent='';
+}
+
+async function doImport(){
+  const ev=document.getElementById('srcEvent').value.trim();
+  const f=document.getElementById('srcFile').files[0];
+  const log=document.getElementById('srcLog');
+  if(!ev||!f){log.style.color='var(--err)';log.textContent='Нужны мероприятие и файл';return;}
+  log.style.color='var(--mut)';log.textContent='Импорт…';
+  try{
+    const body=await f.arrayBuffer();
+    const r=await api('/api/import?event='+encodeURIComponent(ev),{method:'POST',headers:{'Content-Type':'text/csv'},body});
+    log.style.color='var(--ok)';
+    log.textContent=`Готово: всего ${r.total}, новых ${r.added}, обновлено ${r.updated}`;
+    event=ev;localStorage.setItem('hg_event',ev);
+  }catch(e){log.style.color='var(--err)';log.textContent=e.message;}
+}
+
+async function doRefresh(){
+  const ev=document.getElementById('srcEvent').value.trim();
+  const tpid=parseInt(document.getElementById('srcTpid').value,10);
+  const token=document.getElementById('srcToken').value.trim();
+  const log=document.getElementById('srcLog');
+  if(!ev||!tpid){log.style.color='var(--err)';log.textContent='Нужны мероприятие и ID события Timepad';return;}
+  log.style.color='var(--mut)';log.textContent='Запрос к Timepad…';
+  try{
+    const r=await api('/api/refresh',{method:'POST',body:{event:ev,timepad_id:tpid,token:token||undefined}});
+    log.style.color='var(--ok)';
+    log.textContent=`Готово: всего ${r.total}, новых ${r.added}, обновлено ${r.updated}`;
+    event=ev;localStorage.setItem('hg_event',ev);
+  }catch(e){log.style.color='var(--err)';log.textContent=e.message;}
+}
+
 async function saveGuest(mark){
   const name=document.getElementById('aName').value.trim();
   if(!name){document.getElementById('addErr').textContent='Имя обязательно';return;}
