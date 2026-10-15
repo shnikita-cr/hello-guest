@@ -28,19 +28,19 @@ type Guest struct {
 }
 
 type Record struct {
-	Kind   string    `json:"kind"`
-	Event  string    `json:"event"`
-	TS     time.Time `json:"ts"`
-	Guest  *Guest    `json:"guest,omitempty"`
-	Device string    `json:"device,omitempty"`
-	GuestID string   `json:"guest_id,omitempty"`
+	Kind    string    `json:"kind"`
+	Event   string    `json:"event"`
+	TS      time.Time `json:"ts"`
+	Guest   *Guest    `json:"guest,omitempty"`
+	Device  string    `json:"device,omitempty"`
+	GuestID string    `json:"guest_id,omitempty"`
 }
 
 type Store struct {
-	mu      sync.RWMutex
-	path    string
-	file    *os.File
-	guests  map[string]map[string]*Guest
+	mu       sync.RWMutex
+	path     string
+	file     *os.File
+	guests   map[string]map[string]*Guest
 	checkins map[string][]Record
 }
 
