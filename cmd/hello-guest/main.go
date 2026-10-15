@@ -50,11 +50,17 @@ func main() {
 
 	srv := server.New(cfg, st)
 	listener, port := listen(*addr)
-	actual := fmt.Sprintf("%s:%d", hostIP(), port)
-	fmt.Printf("hello-guest запущен\n  http://%s.local\n  http://%s\n", *name, actual)
+	ip := hostIP()
+	actual := fmt.Sprintf("%s:%d", ip, port)
+	host := *name
+	if port == 80 {
+		fmt.Printf("hello-guest запущен\n  http://%s\n  http://%s\n", *name+".local", actual)
+	} else {
+		fmt.Printf("hello-guest запущен\n  http://%s:%d\n  http://%s\n", *name+".local", port, actual)
+	}
 
 	done := make(chan struct{})
-	if sd, err := zeroconf.Register(*name, "_http._tcp", "local.", port, nil, nil); err == nil {
+	if sd, err := zeroconf.RegisterProxy(*name, "_http._tcp", "local.", port, host, []string{ip}, nil, nil); err == nil {
 		go func() { <-done; sd.Shutdown() }()
 	} else {
 		fmt.Printf("mDNS недоступен: %v\n", err)

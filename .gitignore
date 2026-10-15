@@ -3,3 +3,4 @@
 *.db
 *.ndjson
 /bin/
+/devdata/
