@@ -34,11 +34,19 @@ func detect(headers []string) mapping {
 	}
 	set := func(field string, idx *string) {
 		for i, h := range norm {
+			for _, alias := range headerAliases[field] {
+				if h == alias {
+					*idx = headers[i]
+					return
+				}
+			}
+		}
+		for i, h := range norm {
 			if *idx != "" {
 				return
 			}
 			for _, alias := range headerAliases[field] {
-				if h == alias || strings.Contains(h, alias) {
+				if strings.Contains(h, alias) {
 					*idx = headers[i]
 					return
 				}

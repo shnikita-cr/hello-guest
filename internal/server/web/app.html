@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hello Guest</title>
+<style>
+:root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--warn:#e67e22;--err:#e74c3c;--acc:#3b82f6}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font:16px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+.hide{display:none!important}
+button{font:inherit;border:0;border-radius:12px;padding:14px 16px;background:var(--card);color:var(--fg);cursor:pointer;min-height:48px}
+button.primary{background:var(--acc);color:#fff;width:100%}
+button.ok{background:var(--ok);color:#fff}
+.top{display:flex;gap:8px;align-items:center;padding:12px;position:sticky;top:0;background:var(--bg);z-index:5}
+.top h1{font-size:18px;margin:0;flex:1}
+.count{font-size:14px;color:var(--mut);padding:0 12px 8px}
+.count b{color:var(--fg);font-size:20px}
+input,select{font:inherit;width:100%;padding:14px;border-radius:12px;border:1px solid #2a313a;background:var(--card);color:var(--fg);min-height:48px}
+input:focus,select:focus{outline:2px solid var(--acc)}
+.list{padding:0 12px 120px}
+.row{display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;background:var(--card);margin-bottom:8px;cursor:pointer;border:1px solid transparent}
+.row.arrived{border-color:var(--ok)}
+.row .nm{flex:1;font-weight:600}
+.row .sub{font-size:13px;color:var(--mut);font-weight:400}
+.row .mark{width:14px;height:14px;border-radius:50%;background:#2a313a}
+.row.arrived .mark{background:var(--ok)}
+.row.dup{border-color:var(--warn)}
+.pane{position:fixed;inset:0;background:var(--bg);padding:12px;overflow:auto;z-index:10}
+.pane h2{margin:0 0 12px;font-size:20px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.stat{background:var(--card);border-radius:12px;padding:16px}
+.stat .v{font-size:28px;font-weight:700}
+.stat .l{font-size:13px;color:var(--mut)}
+.bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px}
+.bar .t{width:120px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .f{flex:1;height:20px;background:var(--card);border-radius:6px;overflow:hidden}
+.bar .f i{display:block;height:100%;background:var(--acc)}
+.tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid #2a313a}
+.tabs button{flex:1;border-radius:0;background:none;padding:12px}
+.tabs button.on{color:var(--acc);font-weight:700}
+.offline{background:var(--warn);color:#000;text-align:center;padding:6px;font-size:13px}
+.pinwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px}
+.pinwrap input{text-align:center;font-size:24px;letter-spacing:8px;max-width:240px}
+.err{color:var(--err);font-size:14px;min-height:20px}
+</style>
+</head>
+<body>
+
+<div id="pinScreen" class="pinwrap">
+  <h1>Hello Guest</h1>
+  <input id="pinInput" type="tel" inputmode="numeric" maxlength="6" placeholder="PIN">
+  <button class="primary" onclick="submitPin()">Войти</button>
+  <div id="pinErr" class="err"></div>
+</div>
+
+<div id="app" class="hide">
+  <div id="offlineBar" class="offline hide">нет связи, <span id="queueN">0</span> в очереди</div>
+  <div class="top">
+    <button onclick="pickEvent()">←</button>
+    <h1 id="evTitle"></h1>
+    <span id="liveDot" style="color:var(--ok)">●</span>
+  </div>
+  <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span></div>
+  <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
+  <div id="list" class="list"></div>
+  <div class="tabs">
+    <button class="on" id="tabList" onclick="showTab('list')">Список</button>
+    <button id="tabAdd" onclick="openAdd()">+ Гость</button>
+    <button id="tabStats" onclick="openStats()">Статистика</button>
+  </div>
+</div>
+
+<div id="eventPane" class="pane hide">
+  <h2>Мероприятия</h2>
+  <div id="evList"></div>
+</div>
+
+<div id="addPane" class="pane hide">
+  <h2>Новый гость</h2>
+  <div class="field"><label>Имя *</label><input id="aName"></div>
+  <div class="field"><label>Телефон</label><input id="aPhone" type="tel"></div>
+  <div class="field"><label>Email</label><input id="aEmail" type="email"></div>
+  <div class="field"><label>Тип билета</label><input id="aType"></div>
+  <button class="primary" onclick="saveGuest(true)">Сохранить и отметить</button>
+  <button style="width:100%;margin-top:8px" onclick="saveGuest(false)">Сохранить без отметки</button>
+  <button style="width:100%;margin-top:8px" onclick="closePanes()">Отмена</button>
+  <div id="addErr" class="err"></div>
+</div>
+
+<div id="statsPane" class="pane hide">
+  <h2>Статистика</h2>
+  <div class="stats">
+    <div class="stat"><div class="v" id="sArrived">0</div><div class="l">пришло</div></div>
+    <div class="stat"><div class="v" id="sTotal">0</div><div class="l">всего</div></div>
+    <div class="stat"><div class="v" id="sRate">—</div><div class="l">гостей/мин (10 мин)</div></div>
+    <div class="stat"><div class="v" id="sGap">—</div><div class="l">средний интервал</div></div>
+  </div>
+  <h2 style="font-size:16px">По типам билета</h2>
+  <div id="sTypes"></div>
+  <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
+</div>
+
+<script>
+let pin=localStorage.getItem('hg_pin')||'';
+let event=localStorage.getItem('hg_event')||'';
+let guests=[];
+let queue=[];
+let timer=null;
+
+async function api(path,opt={}){
+  const h=Object.assign({'X-Pin':pin},opt.headers||{});
+  if(opt.body&&!(opt.body instanceof Blob)&&typeof opt.body!=='string'){opt.body=JSON.stringify(opt.body);h['Content-Type']='application/json';}
+  const r=await fetch(path,Object.assign({},opt,{headers:h}));
+  if(r.status===401)throw new Error('pin');
+  if(!r.ok)throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
+  return r.json();
+}
+
+async function submitPin(){
+  pin=document.getElementById('pinInput').value.trim();
+  try{await api('/api/pin');localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');boot();}
+  catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
+}
+
+function show(id){['app','eventPane','addPane','statsPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
+function closePanes(){show('app');}
+
+async function boot(){
+  if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
+  try{await api('/api/pin');}catch(e){document.getElementById('pinScreen').classList.remove('hide');return;}
+  if(!event){await pickEvent();return;}
+  await enterEvent(event);
+}
+
+async function pickEvent(){
+  clearInterval(timer);
+  show('eventPane');
+  const evs=await api('/api/events');
+  const el=document.getElementById('evList');
+  el.innerHTML='';
+  if(!evs.length)el.innerHTML='<p style="color:var(--mut)">Нет мероприятий. Импортируйте выгрузку.</p>';
+  evs.forEach(e=>{
+    const d=document.createElement('div');d.className='row';
+    d.innerHTML=`<div class="nm">${e.event}<div class="sub">${e.arrived}/${e.total} пришло</div></div><div class="mark" style="background:var(--acc)"></div>`;
+    d.onclick=()=>{event=e.event;localStorage.setItem('hg_event',event);enterEvent(event);};
+    el.appendChild(d);
+  });
+}
+
+async function enterEvent(ev){
+  show('app');
+  document.getElementById('evTitle').textContent=ev;
+  await refresh();
+  clearInterval(timer);timer=setInterval(refresh,2500);
+}
+
+async function refresh(){
+  try{
+    const st=await api('/api/state?event='+encodeURIComponent(event));
+    guests=st.guests||[];
+    document.getElementById('liveDot').style.color='var(--ok)';
+    document.getElementById('offlineBar').classList.add('hide');
+    await flushQueue();
+    render();
+  }catch(e){
+    document.getElementById('liveDot').style.color='var(--err)';
+    document.getElementById('offlineBar').classList.remove('hide');
+    document.getElementById('queueN').textContent=queue.length;
+    render();
+  }
+}
+
+function q(){return document.getElementById('q').value.toLowerCase().trim();}
+function filtered(){
+  const s=q();
+  if(!s)return guests;
+  return guests.filter(g=>(g.name||'').toLowerCase().includes(s)||(g.email||'').toLowerCase().includes(s)||(g.phone||'').toLowerCase().includes(s)||(g.ticket_number||'').toLowerCase().includes(s));
+}
+
+function render(){
+  const list=document.getElementById('list');list.innerHTML='';
+  const gs=filtered();const arrived=guests.filter(g=>g.arrived_at).length;
+  document.getElementById('cArrived').textContent=arrived;
+  document.getElementById('cTotal').textContent=guests.length;
+  gs.forEach(g=>{
+    const d=document.createElement('div');
+    d.className='row'+(g.arrived_at?' arrived':'');
+    d.innerHTML=`<div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div>`;
+    d.onclick=()=>tap(g);
+    list.appendChild(d);
+  });
+}
+
+function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+
+async function tap(g){
+  if(g.arrived_at){
+    if(!confirm('Уже отмечен. Снять отметку?'))return;
+    queue.push({t:'undo',event,guest_id:g.id});g.arrived_at='';
+  }else{
+    g.arrived_at=new Date().toISOString();
+    queue.push({t:'checkin',event,guest_id:g.id,device:deviceName()});
+  }
+  render();await flushQueue();
+}
+
+function deviceName(){
+  let d=localStorage.getItem('hg_dev');
+  if(!d){d='dev-'+Math.random().toString(36).slice(2,6);localStorage.setItem('hg_dev',d);}
+  return d;
+}
+
+async function flushQueue(){
+  if(!queue.length||!navigator.onLine)return;
+  const q2=queue.slice();queue=[];
+  for(const item of q2){
+    try{
+      if(item.t==='checkin')await api('/api/checkin',{method:'POST',body:{event:item.event,guest_id:item.guest_id,device:item.device}});
+      if(item.t==='undo')await api('/api/undo',{method:'POST',body:{event:item.event,guest_id:item.guest_id}});
+      if(item.t==='add')await api('/api/guest',{method:'POST',body:item.payload});
+    }catch(e){queue.push(item);}
+  }
+  document.getElementById('queueN').textContent=queue.length;
+}
+
+function openAdd(){show('addPane');document.getElementById('aName').focus();}
+async function saveGuest(mark){
+  const name=document.getElementById('aName').value.trim();
+  if(!name){document.getElementById('addErr').textContent='Имя обязательно';return;}
+  const payload={event,name,phone:document.getElementById('aPhone').value.trim(),email:document.getElementById('aEmail').value.trim(),ticket_type:document.getElementById('aType').value.trim()};
+  try{
+    const r=await api('/api/guest',{method:'POST',body:payload});
+    if(mark)queue.push({t:'checkin',event,guest_id:r.id,device:deviceName()});
+    ['aName','aPhone','aEmail','aType'].forEach(i=>document.getElementById(i).value='');
+    closePanes();await refresh();
+  }catch(e){document.getElementById('addErr').textContent=e.message;}
+}
+
+async function openStats(){
+  show('statsPane');
+  const total=guests.length,arrived=guests.filter(g=>g.arrived_at).length;
+  document.getElementById('sArrived').textContent=arrived;
+  document.getElementById('sTotal').textContent=total;
+  const ts=guests.filter(g=>g.arrived_at).map(g=>new Date(g.arrived_at).getTime()).sort((a,b)=>a-b);
+  const now=Date.now(),win=10*60*1000;
+  const recent=ts.filter(t=>now-t<=win).length;
+  document.getElementById('sRate').textContent=ts.length?(recent/10).toFixed(1):'—';
+  if(ts.length>1){const gaps=[];for(let i=1;i<ts.length;i++)gaps.push((ts[i]-ts[i-1])/1000);const avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;document.getElementById('sGap').textContent=avg<60?Math.round(avg)+' с':(avg/60).toFixed(1)+' мин';}
+  else document.getElementById('sGap').textContent='—';
+  const byType={};guests.forEach(g=>{const t=g.ticket_type||'—';byType[t]=byType[t]||{a:0,n:0};byType[t].n++;if(g.arrived_at)byType[t].a++;});
+  const el=document.getElementById('sTypes');el.innerHTML='';
+  Object.entries(byType).sort((a,b)=>b[1].n-a[1].n).forEach(([t,v])=>{
+    const pct=v.n?Math.round(v.a/v.n*100):0;
+    const d=document.createElement('div');d.className='bar';
+    d.innerHTML=`<div class="t">${esc(t)}</div><div class="f"><i style="width:${pct}%"></i></div><div>${v.a}/${v.n}</div>`;
+    el.appendChild(d);
+  });
+}
+
+window.addEventListener('online',()=>{flushQueue();refresh();});
+document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
+boot();
+</script>
+</body>
+</html>
