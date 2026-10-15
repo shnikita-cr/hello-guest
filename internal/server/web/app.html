@@ -76,6 +76,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 
 <div id="eventPane" class="pane hide">
   <h2>Мероприятия</h2>
+  <button class="primary" onclick="openSrc()" style="margin-bottom:12px">Загрузить выгрузку</button>
   <div id="evList"></div>
 </div>
 
@@ -154,7 +155,7 @@ async function submitPin(){
 
 function show(id){['app','eventPane','addPane','statsPane','srcPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
 function showTab(){closePanes();}
-function closePanes(){show('app');}
+function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 
 async function boot(){
   if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
@@ -274,6 +275,7 @@ async function doImport(){
     log.style.color='var(--ok)';
     log.textContent=`Готово: всего ${r.total}, новых ${r.added}, обновлено ${r.updated}`;
     event=ev;localStorage.setItem('hg_event',ev);
+    setTimeout(()=>enterEvent(ev),600);
   }catch(e){log.style.color='var(--err)';log.textContent=e.message;}
 }
 
@@ -289,6 +291,7 @@ async function doRefresh(){
     log.style.color='var(--ok)';
     log.textContent=`Готово: всего ${r.total}, новых ${r.added}, обновлено ${r.updated}`;
     event=ev;localStorage.setItem('hg_event',ev);
+    setTimeout(()=>enterEvent(ev),600);
   }catch(e){log.style.color='var(--err)';log.textContent=e.message;}
 }
 
