@@ -1,28 +1,31 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS = -s -w -X main.version=$(VERSION)
 OUT = dist
+HOSTOS = $(shell uname -s | tr '[:upper:]' '[:lower:]')
+HOSTARCH = $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 
-.PHONY: all build test docker clean release
+.PHONY: all build build-docker test docker release clean
 
 all: build
 
 build:
-	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/hello-guest ./cmd/hello-guest
+	mkdir -p $(OUT)
+	go build -trimpath -ldflags "$(LDFLAGS)" -o $(OUT)/hello-guest ./cmd/hello-guest
+
+build-docker:
+	mkdir -p $(OUT)
+	docker build --target bin --build-arg GOOS=$(HOSTOS) --build-arg GOARCH=$(HOSTARCH) --build-arg VERSION=$(VERSION) -o $(OUT) .
 
 test:
-	go test ./...
+	docker run --rm -v $(CURDIR):/src -v gomodcache:/go/pkg/mod -v gobuildcache:/tmp/gocache -w /src -e GOCACHE=/tmp/gocache golang:1.22-alpine go test ./...
 
 docker:
 	docker build -t hello-guest:$(VERSION) .
 
 release:
+	rm -rf $(OUT)
 	mkdir -p $(OUT)
-	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(OUT)/hello-guest-linux-amd64      ./cmd/hello-guest
-	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(OUT)/hello-guest-linux-arm64      ./cmd/hello-guest
-	CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(OUT)/hello-guest-macos-arm64      ./cmd/hello-guest
-	CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(OUT)/hello-guest-macos-amd64      ./cmd/hello-guest
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o $(OUT)/hello-guest-windows-amd64.exe ./cmd/hello-guest
-	cd $(OUT) && shasum -a 256 hello-guest-* > SHA256SUMS
+	docker build --target release --build-arg VERSION=$(VERSION) -o $(OUT) .
 
 clean:
-	rm -rf bin $(OUT)
+	rm -rf $(OUT)
