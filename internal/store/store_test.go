@@ -1,0 +1,142 @@
+package store
+
+import (
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func tempStore(t *testing.T) *Store {
+	t.Helper()
+	s, err := Open(filepath.Join(t.TempDir(), "test.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s
+}
+
+func TestUpsertAndSearch(t *testing.T) {
+	s := tempStore(t)
+	guests := []Guest{
+		{ID: "ticket:1", Event: "e1", Name: "Иван Иванов", Email: "i@x.com", TicketType: "Standard"},
+		{ID: "ticket:2", Event: "e1", Name: "Ольга Петрова", Email: "o@x.com", TicketType: "VIP"},
+	}
+	added, updated, err := s.Upsert(guests)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added != 2 || updated != 0 {
+		t.Fatalf("added=%d updated=%d", added, updated)
+	}
+	if got := s.Search("e1", "ольг"); len(got) != 1 || got[0].ID != "ticket:2" {
+		t.Fatalf("search: %+v", got)
+	}
+	if got := s.Search("e1", ""); len(got) != 2 {
+		t.Fatalf("empty query should return all: %d", len(got))
+	}
+}
+
+func TestCheckinIdempotent(t *testing.T) {
+	s := tempStore(t)
+	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})
+	first, err := s.Checkin("e1", "g1", "tablet-1", time.Now())
+	if err != nil || first {
+		t.Fatalf("first checkin already=%v err=%v", first, err)
+	}
+	second, err := s.Checkin("e1", "g1", "tablet-2", time.Now())
+	if err != nil || !second {
+		t.Fatalf("second checkin already=%v err=%v", second, err)
+	}
+	total, arrived := s.Count("e1")
+	if total != 1 || arrived != 1 {
+		t.Fatalf("total=%d arrived=%d", total, arrived)
+	}
+	cs := s.Checkins("e1")
+	if len(cs) != 1 {
+		t.Fatalf("checkin events should be 1, got %d", len(cs))
+	}
+}
+
+func TestCheckinUnknownGuest(t *testing.T) {
+	s := tempStore(t)
+	if _, err := s.Checkin("e1", "ghost", "d", time.Now()); err != ErrNotFound {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}
+
+func TestReplayRestoresState(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "data.ndjson")
+	s1, _ := Open(path)
+	s1.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})
+	s1.Checkin("e1", "g1", "d1", time.Now())
+	s1.Close()
+
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	total, arrived := s2.Count("e1")
+	if total != 1 || arrived != 1 {
+		t.Fatalf("replay total=%d arrived=%d", total, arrived)
+	}
+	gs := s2.Search("e1", "a")
+	if len(gs) != 1 || gs[0].ArrivedAt == "" {
+		t.Fatalf("replay search: %+v", gs)
+	}
+}
+
+func TestReimportPreservesArrival(t *testing.T) {
+	s := tempStore(t)
+	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A", Email: "a@x.com"}})
+	s.Checkin("e1", "g1", "d", time.Now())
+	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A", Email: "a@x.com", TicketType: "VIP"}})
+	_, arrived := s.Count("e1")
+	if arrived != 1 {
+		t.Fatalf("arrival lost after reimport: arrived=%d", arrived)
+	}
+	gs := s.Search("e1", "a")
+	if gs[0].TicketType != "VIP" {
+		t.Fatalf("update not applied: %+v", gs[0])
+	}
+}
+
+func TestUndoCheckin(t *testing.T) {
+	s := tempStore(t)
+	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})
+	s.Checkin("e1", "g1", "d", time.Now())
+	if err := s.UndoCheckin("e1", "g1"); err != nil {
+		t.Fatal(err)
+	}
+	_, arrived := s.Count("e1")
+	if arrived != 0 {
+		t.Fatalf("undo failed: arrived=%d", arrived)
+	}
+}
+
+func TestNormalizeEmail(t *testing.T) {
+	cases := map[string]string{
+		"Ivan+promo@Example.com ": "ivan@example.com",
+		"plain@x.ru":              "plain@x.ru",
+		"a+1+b@y.com":             "a@y.com",
+	}
+	for in, want := range cases {
+		if got := NormalizeEmail(in); got != want {
+			t.Errorf("NormalizeEmail(%q)=%q want %q", in, got, want)
+		}
+	}
+}
+
+func TestEventsList(t *testing.T) {
+	s := tempStore(t)
+	s.Upsert([]Guest{
+		{ID: "a", Event: "e2", Name: "A"},
+		{ID: "b", Event: "e1", Name: "B"},
+	})
+	evs := s.Events()
+	if len(evs) != 2 || evs[0] != "e1" || evs[1] != "e2" {
+		t.Fatalf("events: %v", evs)
+	}
+}
