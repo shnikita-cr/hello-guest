@@ -11,6 +11,7 @@ import (
 
 var headerAliases = map[string][]string{
 	"order_id":      {"номер заказа", "order", "orderid", "заказ"},
+	"barcode":       {"штрихкод", "штрих-код", "barcode", "штрих"},
 	"ticket_number": {"номер билета", "ticketnumber", "ticketnumber", "билет", "номер", "код"},
 	"ticket_type":   {"тип билета", "tickettype", "ticket_type", "тип"},
 	"email":         {"email", "e-mail", "почта", "эл. почта", "электронная почта"},
@@ -24,7 +25,7 @@ var headerAliases = map[string][]string{
 }
 
 type mapping struct {
-	OrderID, TicketNumber, TicketType, Email, Phone, Name, FirstName, LastName, Status, Promocode, Sum string
+	OrderID, Barcode, TicketNumber, TicketType, Email, Phone, Name, FirstName, LastName, Status, Promocode, Sum string
 }
 
 func detect(headers []string) mapping {
@@ -43,6 +44,7 @@ func detect(headers []string) mapping {
 	}
 	targets := []target{
 		{"order_id", &m.OrderID},
+		{"barcode", &m.Barcode},
 		{"ticket_number", &m.TicketNumber},
 		{"ticket_type", &m.TicketType},
 		{"email", &m.Email},
@@ -166,6 +168,9 @@ func guestsFrom(t table, event string) []store.Guest {
 		g := store.Guest{Event: event, Source: "timepad"}
 		if m.OrderID != "" {
 			g.OrderID = col(row, normalize(m.OrderID))
+		}
+		if m.Barcode != "" {
+			g.Barcode = col(row, normalize(m.Barcode))
 		}
 		if m.TicketNumber != "" {
 			g.TicketNumber = col(row, normalize(m.TicketNumber))

@@ -136,6 +136,9 @@ func TestDetectFullTimepadHeaders(t *testing.T) {
 	if m.TicketNumber != "Код" {
 		t.Errorf("ticket_number = %q, want Код", m.TicketNumber)
 	}
+	if m.Barcode != "Штрихкод" {
+		t.Errorf("barcode = %q, want Штрихкод", m.Barcode)
+	}
 }
 
 func xlsxBytes(t *testing.T, sharedXML, sheetXML string) []byte {

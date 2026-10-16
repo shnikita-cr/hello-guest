@@ -21,6 +21,7 @@ type Guest struct {
 	TicketType   string `json:"ticket_type,omitempty"`
 	OrderID      string `json:"order_id,omitempty"`
 	TicketNumber string `json:"ticket_number,omitempty"`
+	Barcode      string `json:"barcode,omitempty"`
 	Source       string `json:"source,omitempty"`
 	Status       string `json:"status,omitempty"`
 	ArrivedAt    string `json:"arrived_at,omitempty"`
@@ -351,6 +352,7 @@ func matches(g *Guest, q string) bool {
 		strings.Contains(strings.ToLower(g.Email), q) ||
 		strings.Contains(strings.ToLower(g.Phone), q) ||
 		strings.Contains(strings.ToLower(g.TicketNumber), q) ||
+		strings.Contains(strings.ToLower(g.Barcode), q) ||
 		strings.Contains(strings.ToLower(g.OrderID), q)
 }
 
