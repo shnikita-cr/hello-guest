@@ -36,6 +36,16 @@ func (s *Server) handleJSQR(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+func (s *Server) handleZXing(w http.ResponseWriter, r *http.Request) {
+	b, err := webFS.ReadFile("web/zxing.min.js")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/javascript")
+	w.Write(b)
+}
+
 func importFrom(r io.Reader, event string) ([]store.Guest, error) {
 	return importcsv.Parse(r, event)
 }

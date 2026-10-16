@@ -100,6 +100,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/event/rename", s.authed(s.handleEventRename))
 	s.mux.HandleFunc("/api/event/hide", s.authed(s.handleEventHide))
 	s.mux.HandleFunc("/jsQR.js", s.handleJSQR)
+	s.mux.HandleFunc("/zxing.js", s.handleZXing)
 	s.mux.HandleFunc("/", s.handleIndex)
 }
 
