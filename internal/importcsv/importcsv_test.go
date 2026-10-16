@@ -94,14 +94,13 @@ func TestParseTimepadRealHeaders(t *testing.T) {
 		t.Fatalf("want 2 guests, got %d: %+v", len(guests), guests)
 	}
 	for _, g := range guests {
-		if g.TicketNumber != "" {
-			t.Errorf("ticket_number stolen from ticket_type: %+v", g)
+		// «Код» Timepad (117589678:95603926) кодируется в QR билета —
+		// он же становится guest_id для чек-ина по скану
+		if g.TicketNumber == "" || !strings.HasPrefix(g.ID, "ticket:") {
+			t.Errorf("code column should map to ticket id: %+v", g)
 		}
 		if g.TicketType == "" {
 			t.Errorf("ticket_type empty: %+v", g)
-		}
-		if !strings.HasPrefix(g.ID, "email:") {
-			t.Errorf("id should be email-based, got %q", g.ID)
 		}
 	}
 }
@@ -134,8 +133,8 @@ func TestDetectFullTimepadHeaders(t *testing.T) {
 	if m.FirstName != "Имя" || m.LastName != "Фамилия" {
 		t.Errorf("name columns = %q/%q, want Имя/Фамилия", m.FirstName, m.LastName)
 	}
-	if m.TicketNumber != "" {
-		t.Errorf("ticket_number = %q, want empty", m.TicketNumber)
+	if m.TicketNumber != "Код" {
+		t.Errorf("ticket_number = %q, want Код", m.TicketNumber)
 	}
 }
 
@@ -185,15 +184,16 @@ func TestParseXLSX(t *testing.T) {
 	if len(guests) != 2 {
 		t.Fatalf("want 2 guests, got %d: %+v", len(guests), guests)
 	}
+	// строка 2 с кодом → ticket-id, строка 3 без ячейки «Код» → email-id
+	if !strings.HasPrefix(guests[0].ID, "ticket:") || guests[0].TicketNumber != "117589678" {
+		t.Errorf("row with code should be ticket-based: %+v", guests[0])
+	}
+	if !strings.HasPrefix(guests[1].ID, "email:") {
+		t.Errorf("row with code gap should fall back to email: %+v", guests[1])
+	}
 	for _, g := range guests {
-		if g.TicketNumber != "" {
-			t.Errorf("ticket_number stolen: %+v", g)
-		}
 		if g.TicketType == "" || g.OrderID == "" || g.Status == "" {
 			t.Errorf("fields lost after cell-gap row: %+v", g)
-		}
-		if !strings.HasPrefix(g.ID, "email:") {
-			t.Errorf("id should be email-based, got %q", g.ID)
 		}
 	}
 	if guests[0].Name != "Андрей Шепелев" && guests[1].Name != "Андрей Шепелев" {
@@ -215,8 +215,8 @@ func TestParseRealXLSXFile(t *testing.T) {
 		t.Errorf("want 6 guests from sample, got %d", len(guests))
 	}
 	for _, g := range guests {
-		if !strings.HasPrefix(g.ID, "email:") {
-			t.Errorf("id not email-based: %+v", g)
+		if !strings.HasPrefix(g.ID, "ticket:") || g.TicketNumber == "" {
+			t.Errorf("code column should map to ticket id: %+v", g)
 		}
 		if g.Name == "" || g.TicketType == "" {
 			t.Errorf("missing fields: %+v", g)

@@ -11,7 +11,7 @@ import (
 
 var headerAliases = map[string][]string{
 	"order_id":      {"номер заказа", "order", "orderid", "заказ"},
-	"ticket_number": {"номер билета", "ticketnumber", "ticketnumber", "билет", "номер"},
+	"ticket_number": {"номер билета", "ticketnumber", "ticketnumber", "билет", "номер", "код"},
 	"ticket_type":   {"тип билета", "tickettype", "ticket_type", "тип"},
 	"email":         {"email", "e-mail", "почта", "эл. почта", "электронная почта"},
 	"phone":         {"телефон", "phone", "тел", "мобильный"},
