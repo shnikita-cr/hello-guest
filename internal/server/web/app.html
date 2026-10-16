@@ -132,6 +132,12 @@ input:focus,select:focus{outline:2px solid var(--acc)}
   <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
 </div>
 
+<div id="qrFail" class="hide" style="position:fixed;inset:0;background:#b00020;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center" onclick="this.classList.add('hide')">
+  <div style="font-size:36px;font-weight:800;color:#fff">НЕ НАЙДЕН</div>
+  <div id="qrFailCode" style="font-size:18px;color:#ffd7d7;font-family:monospace"></div>
+  <div style="color:#ffd7d7;font-size:14px">Коснитесь экрана, чтобы вернуться к камере</div>
+</div>
+
 <div id="qrPane" class="pane hide" style="z-index:20;background:#000">
   <h2>Сканер QR</h2>
   <video id="qrVideo" autoplay playsinline muted style="width:100%;border-radius:12px;background:#111"></video>
@@ -267,7 +273,16 @@ async function flushQueue(){
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
-let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0;
+let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFailT=null;
+
+function buzz(p){try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
+
+function qrFail(code){
+  buzz(600); // долгая вибрация на провал
+  document.getElementById('qrFailCode').textContent=code;
+  const f=document.getElementById('qrFail');f.classList.remove('hide');
+  clearTimeout(qrFailT);qrFailT=setTimeout(()=>f.classList.add('hide'),1800);
+}
 
 async function startScan(){
   const msg=document.getElementById('qrMsg');
@@ -321,11 +336,12 @@ async function onQR(text){
   qrLast=code;qrLastTS=Date.now();
   const msg=document.getElementById('qrMsg');
   const g=guests.find(x=>(x.ticket_number||'')===code);
-  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;return;}
-  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;return;}
+  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;qrFail(code);return;}
+  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);return;}
   g.arrived_at=new Date().toISOString();
   queue.push({t:'checkin',event,guest_id:g.id,device:deviceName()});
   msg.style.color='var(--ok)';msg.textContent='Засчитан: '+g.name;
+  buzz(80); // короткий импульс на успех
   render();await flushQueue();
 }
 
