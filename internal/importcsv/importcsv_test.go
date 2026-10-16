@@ -73,3 +73,64 @@ func TestParseRealFile(t *testing.T) {
 		t.Errorf("want 4, got %d", len(guests))
 	}
 }
+
+// Реальные колонки Timepad: «Тип билета» не должен занять ticket_number,
+// иначе guest_id становится «ticket:<тип билета>» и гости схлопываются.
+const timepadReal = `Заказ,Код,Фамилия,Имя,E-mail,Тип билета,Статус
+90654090,117589678,Шепелев,Андрей,a.shepelyov@gmail.com,Сольный билет,оплачен
+90655762,117591732,Манахов,Кирилл,kirill080404@mail.ru,Командный билет,оплачен
+`
+
+func TestParseTimepadRealHeaders(t *testing.T) {
+	guests, err := Parse(strings.NewReader(timepadReal), "muzloto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(guests) != 2 {
+		t.Fatalf("want 2 guests, got %d: %+v", len(guests), guests)
+	}
+	for _, g := range guests {
+		if g.TicketNumber != "" {
+			t.Errorf("ticket_number stolen from ticket_type: %+v", g)
+		}
+		if g.TicketType == "" {
+			t.Errorf("ticket_type empty: %+v", g)
+		}
+		if !strings.HasPrefix(g.ID, "email:") {
+			t.Errorf("id should be email-based, got %q", g.ID)
+		}
+	}
+}
+
+// Полная шапка реальной выгрузки Timepad: ловушки «Статус события»,
+// «Тип оплаты», «Email заказчика» не должны перетирать точные совпадения.
+func TestDetectFullTimepadHeaders(t *testing.T) {
+	headers := []string{
+		"Событие", "Статус события", "Город", "Адрес", "Дата", "Заказ", "Код", "Штрихкод",
+		"Зарегистрирован", "Оплатил", "Сумма", "Скидка (руб.)", "Скидка (%)", "Тип оплаты",
+		"ID оплаты", "Тип билета", "Промокод", "Статус", "Место", "Email заказчика",
+		"Рекламная кампания", "Источник трафика", "Канал регистрации", "Идентификатор контента",
+		"Ключевое слово", "YM ClientID", "Персональная ссылка", "Пришёл", "Комментарий",
+		"E-mail", "Название команды", "Фамилия", "Имя", "Контакт для связи с капитаном",
+		"ФИО участников команды",
+	}
+	m := detect(headers)
+	if m.OrderID != "Заказ" {
+		t.Errorf("order_id = %q, want Заказ", m.OrderID)
+	}
+	if m.TicketType != "Тип билета" {
+		t.Errorf("ticket_type = %q, want Тип билета", m.TicketType)
+	}
+	if m.Status != "Статус" {
+		t.Errorf("status = %q, want Статус", m.Status)
+	}
+	if m.Email != "E-mail" {
+		t.Errorf("email = %q, want E-mail", m.Email)
+	}
+	if m.FirstName != "Имя" || m.LastName != "Фамилия" {
+		t.Errorf("name columns = %q/%q, want Имя/Фамилия", m.FirstName, m.LastName)
+	}
+	if m.TicketNumber != "" {
+		t.Errorf("ticket_number = %q, want empty", m.TicketNumber)
+	}
+}
