@@ -65,6 +65,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
   </div>
   <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
+  <button onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR билет</button>
   <div id="list" class="list"></div>
   <div class="tabs">
     <button class="on" id="tabList" onclick="showTab('list')">Список</button>
@@ -131,6 +132,15 @@ input:focus,select:focus{outline:2px solid var(--acc)}
   <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
 </div>
 
+<div id="qrPane" class="pane hide" style="z-index:20;background:#000">
+  <h2>Сканер QR</h2>
+  <video id="qrVideo" autoplay playsinline muted style="width:100%;border-radius:12px;background:#111"></video>
+  <div id="qrMsg" style="font-size:18px;font-weight:700;min-height:28px;margin:12px 0"></div>
+  <p style="color:var(--mut);font-size:14px">Наведите камеру на QR-код билета Timepad. После отметки камера продолжает сканировать — следующий гость.</p>
+  <button style="width:100%" onclick="stopScan()">Закрыть</button>
+</div>
+
+<script src="/jsQR.js"></script>
 <script>
 let pin=localStorage.getItem('hg_pin')||'';
 let event=localStorage.getItem('hg_event')||'';
@@ -153,7 +163,7 @@ async function submitPin(){
   catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
 }
 
-function show(id){['app','eventPane','addPane','statsPane','srcPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
+function show(id){['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
 function showTab(){closePanes();}
 function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 
@@ -256,6 +266,68 @@ async function flushQueue(){
 }
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
+
+let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0;
+
+async function startScan(){
+  const msg=document.getElementById('qrMsg');
+  msg.textContent='';msg.style.color='var(--mut)';
+  show('qrPane');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    msg.style.color='var(--err)';
+    msg.textContent=location.protocol==='https:'
+      ?'Камера недоступна в этом браузере'
+      :'Камера работает только по https — откройте https://'+location.hostname+':8443';
+    return;
+  }
+  try{
+    qrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+  }catch(e){
+    msg.style.color='var(--err)';
+    msg.textContent=location.protocol==='https:'
+      ?'Нет доступа к камере'
+      :'Откройте по https://'+location.hostname+':8443 — самоподписанный сертификат, подтвердите его';
+    return;
+  }
+  const v=document.getElementById('qrVideo');
+  v.srcObject=qrStream;await v.play();
+  if(!qrCanvas)qrCanvas=document.createElement('canvas');
+  const scan=()=>{
+    if(!qrStream)return;
+    if(v.readyState===v.HAVE_ENOUGH_DATA&&v.videoWidth){
+      qrCanvas.width=v.videoWidth;qrCanvas.height=v.videoHeight;
+      const ctx=qrCanvas.getContext('2d');
+      ctx.drawImage(v,0,0);
+      const code=jsQR(ctx.getImageData(0,0,qrCanvas.width,qrCanvas.height).data,qrCanvas.width,qrCanvas.height);
+      if(code&&code.data)onQR(code.data);
+    }
+    qrRaf=requestAnimationFrame(scan);
+  };
+  qrRaf=requestAnimationFrame(scan);
+}
+
+function stopScan(){
+  if(qrRaf)cancelAnimationFrame(qrRaf);qrRaf=null;
+  if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null;}
+  document.getElementById('qrVideo').srcObject=null;
+  enterEvent(event);
+}
+
+async function onQR(text){
+  const m=text.match(/(\d{4,}:\d{4,})/);
+  const code=m?m[1]:text.trim();
+  if(!code)return;
+  if(code===qrLast&&Date.now()-qrLastTS<3000)return; // тот же код не чаще раза в 3 с
+  qrLast=code;qrLastTS=Date.now();
+  const msg=document.getElementById('qrMsg');
+  const g=guests.find(x=>(x.ticket_number||'')===code);
+  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;return;}
+  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;return;}
+  g.arrived_at=new Date().toISOString();
+  queue.push({t:'checkin',event,guest_id:g.id,device:deviceName()});
+  msg.style.color='var(--ok)';msg.textContent='Засчитан: '+g.name;
+  render();await flushQueue();
+}
 
 function openSrc(){
   show('srcPane');
