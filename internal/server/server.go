@@ -96,6 +96,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/import", s.authed(s.handleImport))
 	s.mux.HandleFunc("/api/refresh", s.authed(s.handleRefresh))
 	s.mux.HandleFunc("/api/stats", s.authed(s.handleStats))
+	s.mux.HandleFunc("/jsQR.js", s.handleJSQR)
 	s.mux.HandleFunc("/", s.handleIndex)
 }
 
