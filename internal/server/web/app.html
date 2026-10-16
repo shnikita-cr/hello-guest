@@ -43,7 +43,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .tabs button{flex:1;border-radius:0;background:none;padding:12px}
 .tabs button.on{color:var(--acc);font-weight:700}
 .offline{background:var(--warn);color:#000;text-align:center;padding:6px;font-size:13px}
-.pinwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px}
+.pinwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px 24px 80px}
 .pinwrap input{text-align:center;font-size:24px;letter-spacing:8px;max-width:240px}
 .err{color:var(--err);font-size:14px;min-height:20px}
 .row.muted{opacity:.55}
@@ -62,6 +62,14 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   <div id="pinErr" class="err"></div>
 </div>
 
+<div class="tabs">
+  <button id="tabPin" onclick="showPin()">Вход</button>
+  <button class="on hide" id="tabList" onclick="showTab('list')">Список</button>
+  <button class="hide" id="tabAdd" onclick="openAdd()">+ Гость</button>
+  <button id="tabStats" onclick="openStats()">Статистика</button>
+  <button class="hide" id="tabSrc" onclick="openSrc()">Источники</button>
+</div>
+
 <div id="app" class="hide">
   <div id="offlineBar" class="offline hide">нет связи, <span id="queueN">0</span> в очереди</div>
   <div class="top">
@@ -73,12 +81,6 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR билет</button>
   <div id="list" class="list"></div>
-  <div class="tabs">
-    <button class="on" id="tabList" onclick="showTab('list')">Список</button>
-    <button id="tabAdd" onclick="openAdd()">+ Гость</button>
-    <button id="tabStats" onclick="openStats()">Статистика</button>
-    <button id="tabSrc" onclick="openSrc()">Источники</button>
-  </div>
 </div>
 
 <div id="eventPane" class="pane hide">
@@ -178,8 +180,23 @@ async function api(path,opt={}){
 
 async function submitPin(){
   pin=document.getElementById('pinInput').value.trim();
-  try{await api('/api/pin');localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');boot();}
+  try{await api('/api/pin');localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();}
   catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
+}
+
+function renderTabs(){
+  const authed=!!localStorage.getItem('hg_pin');
+  document.getElementById('tabPin').classList.toggle('hide',authed);
+  document.getElementById('tabList').classList.toggle('hide',!authed);
+  document.getElementById('tabAdd').classList.toggle('hide',!authed);
+  document.getElementById('tabSrc').classList.toggle('hide',!authed);
+}
+
+function showPin(){
+  clearInterval(timer);
+  ['eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.add('hide'));
+  document.getElementById('app').classList.add('hide');
+  document.getElementById('pinScreen').classList.remove('hide');
 }
 
 function show(id){
@@ -190,10 +207,11 @@ function showTab(){closePanes();}
 function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 
 async function boot(){
+  renderTabs();
   if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
   try{await api('/api/pin');}
   catch(e){
-    if(e.message==='pin'){localStorage.removeItem('hg_pin');document.getElementById('pinScreen').classList.remove('hide');return;}
+    if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();document.getElementById('pinScreen').classList.remove('hide');return;}
     // нет связи — работаем с кэшем
   }
   loadQueue();
@@ -207,17 +225,6 @@ function qpush(item){queue.push(item);saveQueue();}
 
 function loadCache(){try{guests=JSON.parse(localStorage.getItem('hg_cache_'+event)||'[]');}catch(e){guests=[];}}
 function saveCache(){try{localStorage.setItem('hg_cache_'+event,JSON.stringify(guests));}catch(e){}}
-
-async function needPin(){
-  const p=prompt('PIN для доступа');
-  if(p===null)return false;
-  try{
-    const r=await fetch('/api/pin',{headers:{'X-Pin':p}});
-    if(r.ok)return true;
-  }catch(e){}
-  alert('Неверный PIN или нет связи');
-  return false;
-}
 
 let showHidden=false;
 
@@ -365,7 +372,7 @@ async function flushQueue(){
   document.getElementById('queueN').textContent=queue.length;
 }
 
-async function openAdd(){if(!await needPin())return;show('addPane');document.getElementById('aName').focus();}
+function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
 let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFlashT=null;
 
@@ -448,8 +455,7 @@ async function onQR(text){
   render();await flushQueue();
 }
 
-async function openSrc(){
-  if(!await needPin())return;
+function openSrc(){
   show('srcPane');
   document.getElementById('srcEvent').value=event||'';
   document.getElementById('srcLog').textContent='';
@@ -501,6 +507,7 @@ async function saveGuest(mark){
 
 async function openStats(){
   show('statsPane');
+  if(!guests.length&&event)loadCache();
   const total=guests.length,arrived=guests.filter(g=>g.arrived_at).length;
   document.getElementById('sArrived').textContent=arrived;
   document.getElementById('sTotal').textContent=total;
