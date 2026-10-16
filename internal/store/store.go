@@ -36,6 +36,7 @@ type Record struct {
 	GuestID string    `json:"guest_id,omitempty"`
 	New     string    `json:"new,omitempty"`    // rename_event: новое имя события
 	Hidden  *bool     `json:"hidden,omitempty"` // event_meta: скрыть/показать событие
+	Via     string    `json:"via,omitempty"`    // checkin: qr | tap
 }
 
 type Store struct {
@@ -44,6 +45,7 @@ type Store struct {
 	file     *os.File
 	guests   map[string]map[string]*Guest
 	checkins map[string][]Record
+	qrmiss   map[string][]Record
 	hidden   map[string]bool
 }
 
@@ -60,6 +62,7 @@ func Open(path string) (*Store, error) {
 		file:     f,
 		guests:   map[string]map[string]*Guest{},
 		checkins: map[string][]Record{},
+		qrmiss:   map[string][]Record{},
 		hidden:   map[string]bool{},
 	}
 	if err := s.replay(); err != nil {
@@ -112,6 +115,8 @@ func (s *Store) apply(r *Record) {
 		if r.Hidden != nil {
 			s.hidden[r.Event] = *r.Hidden
 		}
+	case "qrmiss":
+		s.qrmiss[r.Event] = append(s.qrmiss[r.Event], *r)
 	case "rename_event":
 		if r.New == "" || r.Event == r.New {
 			return
@@ -176,7 +181,7 @@ func (s *Store) Upsert(guests []Guest) (added, updated int, err error) {
 
 var ErrNotFound = errors.New("guest not found")
 
-func (s *Store) Checkin(event, guestID, device string, now time.Time) (already bool, err error) {
+func (s *Store) Checkin(event, guestID, device, via string, now time.Time) (already bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ev := s.guests[event]
@@ -190,12 +195,60 @@ func (s *Store) Checkin(event, guestID, device string, now time.Time) (already b
 	if g.ArrivedAt != "" {
 		return true, nil
 	}
-	r := Record{Kind: "checkin", Event: event, TS: now.UTC(), GuestID: guestID, Device: device}
+	r := Record{Kind: "checkin", Event: event, TS: now.UTC(), GuestID: guestID, Device: device, Via: via}
 	if err := s.append(&r); err != nil {
 		return false, err
 	}
 	s.apply(&r)
 	return false, nil
+}
+
+// QRMiss фиксирует сканирование ненайденного QR-кода.
+func (s *Store) QRMiss(event string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r := Record{Kind: "qrmiss", Event: event, TS: time.Now().UTC()}
+	if err := s.append(&r); err != nil {
+		return err
+	}
+	s.apply(&r)
+	return nil
+}
+
+type Stats struct {
+	Total   int `json:"total"`
+	Arrived int `json:"arrived"`
+	QR      int `json:"qr"`
+	Tap     int `json:"tap"`
+	Walkins int `json:"walkins"`
+	FalseQR int `json:"false_qr"`
+}
+
+// Stats считает итоги события: отмеченных по qr и из списка,
+// добавленных вручную (walk-in), ложных сканов QR.
+func (s *Store) Stats(event string) Stats {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ev := s.guests[event]
+	st := Stats{Total: len(ev), FalseQR: len(s.qrmiss[event])}
+	via := map[string]string{}
+	for _, r := range s.checkins[event] {
+		via[r.GuestID] = r.Via
+	}
+	for _, g := range ev {
+		if g.Source == "walkin" {
+			st.Walkins++
+		}
+		if g.ArrivedAt != "" {
+			st.Arrived++
+			if via[g.ID] == "qr" {
+				st.QR++
+			} else {
+				st.Tap++
+			}
+		}
+	}
+	return st
 }
 
 func (s *Store) UndoCheckin(event, guestID string) error {

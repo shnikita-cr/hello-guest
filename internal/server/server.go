@@ -96,6 +96,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/import", s.authed(s.handleImport))
 	s.mux.HandleFunc("/api/refresh", s.authed(s.handleRefresh))
 	s.mux.HandleFunc("/api/stats", s.authed(s.handleStats))
+	s.mux.HandleFunc("/api/qrmiss", s.authed(s.handleQRMiss))
 	s.mux.HandleFunc("/api/event/rename", s.authed(s.handleEventRename))
 	s.mux.HandleFunc("/api/event/hide", s.authed(s.handleEventHide))
 	s.mux.HandleFunc("/jsQR.js", s.handleJSQR)
@@ -195,12 +196,16 @@ func (s *Server) handleCheckin(w http.ResponseWriter, r *http.Request) {
 		Event  string `json:"event"`
 		Guest  string `json:"guest_id"`
 		Device string `json:"device"`
+		Via    string `json:"via"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad json")
 		return
 	}
-	already, err := s.store.Checkin(req.Event, req.Guest, req.Device, s.now())
+	if req.Via == "" {
+		req.Via = "tap"
+	}
+	already, err := s.store.Checkin(req.Event, req.Guest, req.Device, req.Via, s.now())
 	if err == store.ErrNotFound {
 		writeErr(w, http.StatusNotFound, "guest not found")
 		return
@@ -324,8 +329,28 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	ev := r.URL.Query().Get("event")
-	total, arrived := s.store.Count(ev)
-	writeJSON(w, map[string]any{"event": ev, "total": total, "arrived": arrived})
+	st := s.store.Stats(ev)
+	writeJSON(w, map[string]any{"event": ev, "total": st.Total, "arrived": st.Arrived,
+		"qr": st.QR, "tap": st.Tap, "walkins": st.Walkins, "false_qr": st.FalseQR})
+}
+
+func (s *Server) handleQRMiss(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	var req struct {
+		Event string `json:"event"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	if err := s.store.QRMiss(req.Event); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
 }
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
