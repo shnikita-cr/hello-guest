@@ -207,10 +207,11 @@ function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 async function boot(){
   renderTabs();
   if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
-  try{await api('/api/pin');}
+  try{await api('/api/pin');document.getElementById('pinScreen').classList.add('hide');}
   catch(e){
     if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();document.getElementById('pinScreen').classList.remove('hide');return;}
     // нет связи — работаем с кэшем
+    if(!localStorage.getItem('hg_pin')){document.getElementById('pinScreen').classList.remove('hide');return;}
   }
   loadQueue();
   if(!event){await pickEvent();return;}
