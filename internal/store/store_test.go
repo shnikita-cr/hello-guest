@@ -243,8 +243,8 @@ func TestStats(t *testing.T) {
 	})
 	s.Checkin("e1", "a", "d1", "qr", time.Now())
 	s.Checkin("e1", "b", "d1", "tap", time.Now())
-	s.QRMiss("e1")
-	s.QRMiss("e1")
+	s.QRMiss("e1", "117726839:97059462")
+	s.QRMiss("e1", "9999:8888")
 	st := s.Stats("e1")
 	if st.Total != 3 || st.Arrived != 2 || st.QR != 1 || st.Tap != 1 || st.Walkins != 1 || st.FalseQR != 2 {
 		t.Fatalf("stats: %+v", st)

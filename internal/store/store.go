@@ -37,6 +37,7 @@ type Record struct {
 	New     string    `json:"new,omitempty"`    // rename_event: новое имя события
 	Hidden  *bool     `json:"hidden,omitempty"` // event_meta: скрыть/показать событие
 	Via     string    `json:"via,omitempty"`    // checkin: qr | tap
+	Code    string    `json:"code,omitempty"`   // qrmiss: распознанный код билета
 }
 
 type Store struct {
@@ -204,10 +205,10 @@ func (s *Store) Checkin(event, guestID, device, via string, now time.Time) (alre
 }
 
 // QRMiss фиксирует сканирование ненайденного QR-кода.
-func (s *Store) QRMiss(event string) error {
+func (s *Store) QRMiss(event, code string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	r := Record{Kind: "qrmiss", Event: event, TS: time.Now().UTC()}
+	r := Record{Kind: "qrmiss", Event: event, Code: code, TS: time.Now().UTC()}
 	if err := s.append(&r); err != nil {
 		return err
 	}

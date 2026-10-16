@@ -341,12 +341,13 @@ func (s *Server) handleQRMiss(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Event string `json:"event"`
+		Code  string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad json")
 		return
 	}
-	if err := s.store.QRMiss(req.Event); err != nil {
+	if err := s.store.QRMiss(req.Event, req.Code); err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
