@@ -140,3 +140,96 @@ func TestEventsList(t *testing.T) {
 		t.Fatalf("events: %v", evs)
 	}
 }
+
+func TestRenameEvent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "d.ndjson")
+	s1, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s1.Upsert([]Guest{{ID: "g1", Event: "old", Name: "A"}})
+	s1.Checkin("old", "g1", "d1", time.Now())
+	if err := s1.RenameEvent("old", "new"); err != nil {
+		t.Fatal(err)
+	}
+	if total, _ := s1.Count("old"); total != 0 {
+		t.Fatalf("old event must be empty, total=%d", total)
+	}
+	if total, _ := s1.Count("new"); total != 1 {
+		t.Fatalf("new event total=%d", total)
+	}
+	if gs := s1.Search("new", "a"); len(gs) != 1 || gs[0].ArrivedAt == "" {
+		t.Fatalf("rename lost checkin: %+v", gs)
+	}
+	s1.Close()
+
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	evs := s2.Events()
+	if len(evs) != 1 || evs[0] != "new" {
+		t.Fatalf("events after replay: %v", evs)
+	}
+	if total, arrived := s2.Count("new"); total != 1 || arrived != 1 {
+		t.Fatalf("replay total=%d arrived=%d", total, arrived)
+	}
+}
+
+func TestRenameEventConflict(t *testing.T) {
+	s := tempStore(t)
+	s.Upsert([]Guest{{ID: "a", Event: "e1", Name: "A"}})
+	s.Upsert([]Guest{{ID: "b", Event: "e2", Name: "B"}})
+	if err := s.RenameEvent("e1", "e2"); err == nil {
+		t.Fatal("want conflict error")
+	}
+	if err := s.RenameEvent("e1", "e1"); err == nil {
+		t.Fatal("want bad-name error")
+	}
+	if err := s.RenameEvent("ghost", "x"); err != ErrNotFound {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}
+
+func TestHideEvent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "d.ndjson")
+	s1, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s1.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})
+	if err := s1.HideEvent("e1", true); err != nil {
+		t.Fatal(err)
+	}
+	if !s1.EventHidden("e1") {
+		t.Fatal("hide not applied")
+	}
+	if total, _ := s1.Count("e1"); total != 1 {
+		t.Fatalf("guests must remain, total=%d", total)
+	}
+	s1.Close()
+
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	if !s2.EventHidden("e1") {
+		t.Fatal("hidden flag lost on replay")
+	}
+	if total, _ := s2.Count("e1"); total != 1 {
+		t.Fatalf("guests lost after replay, total=%d", total)
+	}
+	if err := s2.HideEvent("e1", false); err != nil {
+		t.Fatal(err)
+	}
+	if s2.EventHidden("e1") {
+		t.Fatal("unhide failed")
+	}
+	if err := s2.HideEvent("ghost", true); err != ErrNotFound {
+		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}

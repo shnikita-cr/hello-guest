@@ -34,6 +34,8 @@ type Record struct {
 	Guest   *Guest    `json:"guest,omitempty"`
 	Device  string    `json:"device,omitempty"`
 	GuestID string    `json:"guest_id,omitempty"`
+	New     string    `json:"new,omitempty"`    // rename_event: новое имя события
+	Hidden  *bool     `json:"hidden,omitempty"` // event_meta: скрыть/показать событие
 }
 
 type Store struct {
@@ -42,6 +44,7 @@ type Store struct {
 	file     *os.File
 	guests   map[string]map[string]*Guest
 	checkins map[string][]Record
+	hidden   map[string]bool
 }
 
 func Open(path string) (*Store, error) {
@@ -57,6 +60,7 @@ func Open(path string) (*Store, error) {
 		file:     f,
 		guests:   map[string]map[string]*Guest{},
 		checkins: map[string][]Record{},
+		hidden:   map[string]bool{},
 	}
 	if err := s.replay(); err != nil {
 		f.Close()
@@ -103,6 +107,32 @@ func (s *Store) apply(r *Record) {
 			if g, ok := s.guests[r.Event][r.GuestID]; ok && g.ArrivedAt == "" {
 				g.ArrivedAt = r.TS.UTC().Format(time.RFC3339)
 			}
+		}
+	case "event_meta":
+		if r.Hidden != nil {
+			s.hidden[r.Event] = *r.Hidden
+		}
+	case "rename_event":
+		if r.New == "" || r.Event == r.New {
+			return
+		}
+		if _, exists := s.guests[r.New]; exists {
+			return
+		}
+		if gs, ok := s.guests[r.Event]; ok {
+			for _, g := range gs {
+				g.Event = r.New
+			}
+			s.guests[r.New] = gs
+			delete(s.guests, r.Event)
+		}
+		if cs, ok := s.checkins[r.Event]; ok {
+			s.checkins[r.New] = cs
+			delete(s.checkins, r.Event)
+		}
+		if h, ok := s.hidden[r.Event]; ok {
+			s.hidden[r.New] = h
+			delete(s.hidden, r.Event)
 		}
 	}
 }
@@ -196,6 +226,48 @@ func (s *Store) Events() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func (s *Store) EventHidden(event string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.hidden[event]
+}
+
+// RenameEvent переименовывает событие записью в журнал; данные не трогаются.
+func (s *Store) RenameEvent(event, newName string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if newName == "" || newName == event {
+		return errors.New("bad event name")
+	}
+	if _, ok := s.guests[event]; !ok {
+		return ErrNotFound
+	}
+	if _, ok := s.guests[newName]; ok {
+		return errors.New("event already exists")
+	}
+	r := Record{Kind: "rename_event", Event: event, New: newName, TS: time.Now().UTC()}
+	if err := s.append(&r); err != nil {
+		return err
+	}
+	s.apply(&r)
+	return nil
+}
+
+// HideEvent скрывает или показывает событие записью в журнал; данные остаются.
+func (s *Store) HideEvent(event string, hidden bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.guests[event]; !ok {
+		return ErrNotFound
+	}
+	r := Record{Kind: "event_meta", Event: event, TS: time.Now().UTC(), Hidden: &hidden}
+	if err := s.append(&r); err != nil {
+		return err
+	}
+	s.apply(&r)
+	return nil
 }
 
 func (s *Store) Search(event, query string) []Guest {

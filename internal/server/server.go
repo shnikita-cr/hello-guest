@@ -96,6 +96,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/import", s.authed(s.handleImport))
 	s.mux.HandleFunc("/api/refresh", s.authed(s.handleRefresh))
 	s.mux.HandleFunc("/api/stats", s.authed(s.handleStats))
+	s.mux.HandleFunc("/api/event/rename", s.authed(s.handleEventRename))
+	s.mux.HandleFunc("/api/event/hide", s.authed(s.handleEventHide))
 	s.mux.HandleFunc("/jsQR.js", s.handleJSQR)
 	s.mux.HandleFunc("/", s.handleIndex)
 }
@@ -129,13 +131,54 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		Event   string `json:"event"`
 		Total   int    `json:"total"`
 		Arrived int    `json:"arrived"`
+		Hidden  bool   `json:"hidden"`
 	}
 	out := make([]row, 0, len(evs))
 	for _, e := range evs {
 		total, arrived := s.store.Count(e)
-		out = append(out, row{e, total, arrived})
+		out = append(out, row{e, total, arrived, s.store.EventHidden(e)})
 	}
 	writeJSON(w, out)
+}
+
+func (s *Server) handleEventRename(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	var req struct {
+		Event string `json:"event"`
+		New   string `json:"new"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	if err := s.store.RenameEvent(req.Event, req.New); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleEventHide(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	var req struct {
+		Event  string `json:"event"`
+		Hidden bool   `json:"hidden"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	if err := s.store.HideEvent(req.Event, req.Hidden); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
