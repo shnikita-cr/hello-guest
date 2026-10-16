@@ -45,6 +45,11 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .pinwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px}
 .pinwrap input{text-align:center;font-size:24px;letter-spacing:8px;max-width:240px}
 .err{color:var(--err);font-size:14px;min-height:20px}
+.row.muted{opacity:.55}
+button.mini{min-height:44px;min-width:44px;padding:0 12px;font-size:16px}
+@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+#liveDot{display:inline-block;font-size:18px;line-height:1;user-select:none;animation:beat 1s ease-in-out infinite}
+#liveDot.bad{animation-duration:.5s}
 </style>
 </head>
 <body>
@@ -61,7 +66,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
   <div class="top">
     <button onclick="pickEvent()">←</button>
     <h1 id="evTitle"></h1>
-    <span id="liveDot" style="color:var(--ok)">●</span>
+    <span id="liveDot">❤</span>
   </div>
   <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
@@ -180,19 +185,56 @@ async function boot(){
   await enterEvent(event);
 }
 
+let showHidden=false;
+
 async function pickEvent(){
   clearInterval(timer);
   show('eventPane');
   const evs=await api('/api/events');
   const el=document.getElementById('evList');
   el.innerHTML='';
-  if(!evs.length)el.innerHTML='<p style="color:var(--mut)">Нет мероприятий. Импортируйте выгрузку.</p>';
-  evs.forEach(e=>{
-    const d=document.createElement('div');d.className='row';
-    d.innerHTML=`<div class="nm">${e.event}<div class="sub">${e.arrived}/${e.total} пришло</div></div><div class="mark" style="background:var(--acc)"></div>`;
+  if(!evs.length){el.innerHTML='<p style="color:var(--mut)">Нет мероприятий. Импортируйте выгрузку.</p>';return;}
+  const hid=evs.filter(e=>e.hidden);
+  let out=evs.filter(e=>!e.hidden);
+  if(hid.length){
+    const t=document.createElement('button');
+    t.style.width='100%';t.style.marginBottom='12px';
+    t.textContent=showHidden?`Скрыть скрытые (${hid.length})`:`Показать скрытые (${hid.length})`;
+    t.onclick=()=>{showHidden=!showHidden;pickEvent();};
+    el.appendChild(t);
+    if(showHidden)out=out.concat(hid);
+  }
+  out.forEach(e=>{
+    const d=document.createElement('div');d.className='row'+(e.hidden?' muted':'');
+    d.innerHTML=`<div class="nm">${esc(e.event)}<div class="sub">${e.arrived}/${e.total} пришло${e.hidden?' · скрыто':''}</div></div>`;
+    const b1=document.createElement('button');b1.className='mini';
+    b1.textContent=e.hidden?'↩':'✎';
+    b1.onclick=ev=>{ev.stopPropagation();e.hidden?toggleEventHidden(e.event,false):renameEvent(e.event);};
+    const b2=document.createElement('button');b2.className='mini';
+    b2.textContent=e.hidden?'':'👁';
+    b2.onclick=ev=>{ev.stopPropagation();toggleEventHidden(e.event,true);};
+    d.appendChild(b1);
+    if(!e.hidden)d.appendChild(b2);
     d.onclick=()=>{event=e.event;localStorage.setItem('hg_event',event);enterEvent(event);};
     el.appendChild(d);
   });
+}
+
+async function renameEvent(old){
+  const n=prompt('Новое имя события',old);
+  if(n===null)return;
+  const nn=n.trim();
+  if(!nn||nn===old)return;
+  try{
+    await api('/api/event/rename',{method:'POST',body:{event:old,new:nn}});
+    if(event===old){event=nn;localStorage.setItem('hg_event',nn);}
+    pickEvent();
+  }catch(e){alert(e.message);}
+}
+
+async function toggleEventHidden(ev,h){
+  try{await api('/api/event/hide',{method:'POST',body:{event:ev,hidden:h}});pickEvent();}
+  catch(e){alert(e.message);}
 }
 
 async function enterEvent(ev){
@@ -206,12 +248,14 @@ async function refresh(){
   try{
     const st=await api('/api/state?event='+encodeURIComponent(event));
     guests=st.guests||[];
-    document.getElementById('liveDot').style.color='var(--ok)';
+    const dot=document.getElementById('liveDot');
+    dot.style.color='var(--ok)';dot.classList.remove('bad');
     document.getElementById('offlineBar').classList.add('hide');
     await flushQueue();
     render();
   }catch(e){
-    document.getElementById('liveDot').style.color='var(--err)';
+    const dot=document.getElementById('liveDot');
+    dot.style.color='var(--err)';dot.classList.add('bad');
     document.getElementById('offlineBar').classList.remove('hide');
     document.getElementById('queueN').textContent=queue.length;
     render();
