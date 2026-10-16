@@ -458,7 +458,7 @@ async function onQR(text){
   const msg=document.getElementById('qrMsg');
     if(/^https?:/i.test(code)){
     msg.style.color='var(--err)';msg.textContent='QR содержит ссылку, а не номер билета';
-    buzz(600);flashQR('#b00020','✗','ЭТО ССЫЛКА, НЕ НОМЕР',code.slice(0,60),2400);
+    buzz(600);flashQR('#b00020','✗','ПОПРОБУЙТЕ СКАНИРОВАТЬ ШТРИХ КОД',code.slice(0,60),2400);
     qpush({t:'qrmiss',event,code});return;
   }
   const g=guests.find(x=>(x.ticket_number||'')===code||(x.barcode||'')===code);
