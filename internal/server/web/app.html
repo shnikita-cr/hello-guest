@@ -274,7 +274,7 @@ function q(){return document.getElementById('q').value.toLowerCase().trim();}
 function filtered(){
   const s=q();
   if(!s)return guests;
-  return guests.filter(g=>(g.name||'').toLowerCase().includes(s)||(g.email||'').toLowerCase().includes(s)||(g.phone||'').toLowerCase().includes(s)||(g.ticket_number||'').toLowerCase().includes(s));
+  return guests.filter(g=>(g.name||'').toLowerCase().includes(s)||(g.email||'').toLowerCase().includes(s)||(g.phone||'').toLowerCase().includes(s)||(g.ticket_number||'').toLowerCase().includes(s)||(g.barcode||'').toLowerCase().includes(s));
 }
 
 function render(){
