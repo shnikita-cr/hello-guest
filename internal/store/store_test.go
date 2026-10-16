@@ -256,3 +256,25 @@ func TestStats(t *testing.T) {
 		t.Fatalf("stats after recheck: %+v", st)
 	}
 }
+
+func TestBarcodeFromTicket(t *testing.T) {
+	cases := map[string]string{
+		"117589678:95603926": "1000956039269",
+		"117640725:97155249": "1000971552491",
+		"117591732:49871258": "1000498712583",
+		"117726839:97059462": "1000970594621",
+		"117726839":          "",
+		"abc:def":            "",
+	}
+	for ticket, want := range cases {
+		if got := BarcodeFromTicket(ticket); got != want {
+			t.Errorf("BarcodeFromTicket(%q)=%q, want %q", ticket, got, want)
+		}
+	}
+	s := tempStore(t)
+	s.Upsert([]Guest{{ID: "a", Event: "e1", Name: "A", TicketNumber: "117726839:97059462"}})
+	got := s.Search("e1", "1000970594621")
+	if len(got) != 1 || got[0].Barcode != "1000970594621" {
+		t.Fatalf("search by derived barcode: %+v", got)
+	}
+}

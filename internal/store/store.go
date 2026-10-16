@@ -102,6 +102,9 @@ func (s *Store) apply(r *Record) {
 		}
 		g := *r.Guest
 		g.Event = r.Event
+		if g.Barcode == "" {
+			g.Barcode = BarcodeFromTicket(g.TicketNumber)
+		}
 		if prev, ok := s.guests[r.Event][g.ID]; ok && prev.ArrivedAt != "" && g.ArrivedAt == "" {
 			g.ArrivedAt = prev.ArrivedAt
 		}
@@ -345,6 +348,32 @@ func (s *Store) Search(event, query string) []Guest {
 		return out[i].Name < out[j].Name
 	})
 	return out
+}
+
+// BarcodeFromTicket вычисляет штрихкод Timepad по номеру билета
+// «1000»+id+контрольная EAN-13. Идентификатор билета — 8 цифр.
+func BarcodeFromTicket(ticket string) string {
+	parts := strings.Split(ticket, ":")
+	if len(parts) != 2 || len(parts[1]) != 8 {
+		return ""
+	}
+	id := parts[1]
+	for _, r := range id {
+		if r < '0' || r > '9' {
+			return ""
+		}
+	}
+	s := "1000" + id
+	sum := 0
+	for i, r := range s {
+		n := int(r - '0')
+		if i%2 == 0 {
+			sum += n
+		} else {
+			sum += n * 3
+		}
+	}
+	return s + string(rune('0'+(10-sum%10)%10))
 }
 
 func matches(g *Guest, q string) bool {
