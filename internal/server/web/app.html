@@ -161,6 +161,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 </div>
 
 <script src="/jsQR.js"></script>
+<script src="/zxing.js"></script>
 <script>
 let pin=localStorage.getItem('hg_pin')||'';
 let event=localStorage.getItem('hg_event')||'';
@@ -371,7 +372,7 @@ async function flushQueue(){
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
-let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFlashT=null;
+let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxReader=null;
 
 function buzz(p){try{const v=navigator.vibrate||navigator.mozVibrate;v&&v.call(navigator,p);}catch(e){}}
 
@@ -415,8 +416,23 @@ async function startScan(){
       qrCanvas.width=v.videoWidth;qrCanvas.height=v.videoHeight;
       const ctx=qrCanvas.getContext('2d');
       ctx.drawImage(v,0,0);
-      const code=jsQR(ctx.getImageData(0,0,qrCanvas.width,qrCanvas.height).data,qrCanvas.width,qrCanvas.height);
-      if(code&&code.data)onQR(code.data);
+      const img=ctx.getImageData(0,0,qrCanvas.width,qrCanvas.height);
+      const q=jsQR(img.data,qrCanvas.width,qrCanvas.height);
+      let text=q&&q.data;
+      if(!text&&window.ZXing&&qrFrame%6===0){
+        try{
+          if(!zxReader){
+            zxReader=new ZXing.MultiFormatReader();
+            const hints=new Map();
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.CODE_39,ZXing.BarcodeFormat.ITF]);
+            zxReader.setHints(hints);
+          }
+          const bmp=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(qrCanvas)));
+          text=zxReader.decode(bmp).getText();
+        }catch(e){try{zxReader.reset();}catch(e2){}}
+      }
+      qrFrame++;
+      if(text)onQR(text);
     }
     qrRaf=requestAnimationFrame(scan);
   };
@@ -442,7 +458,7 @@ async function onQR(text){
     buzz(600);flashQR('#b00020','✗','ЭТО ССЫЛКА, НЕ НОМЕР',code.slice(0,60),2400);
     qpush({t:'qrmiss',event,code});return;
   }
-  const g=guests.find(x=>(x.ticket_number||'')===code);
+  const g=guests.find(x=>(x.ticket_number||'')===code||(x.barcode||'')===code);
   if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,1800);qpush({t:'qrmiss',event,code});return;}
   if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,1200);return;}
   g.arrived_at=new Date().toISOString();
