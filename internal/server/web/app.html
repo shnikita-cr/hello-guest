@@ -199,10 +199,7 @@ function showPin(){
   document.getElementById('pinScreen').classList.remove('hide');
 }
 
-function show(id){
-  ['eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
-  if(id!=='pinScreen')document.getElementById('app').classList.remove('hide');
-}
+function show(id){['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
 function showTab(){closePanes();}
 function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 
