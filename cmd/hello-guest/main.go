@@ -59,6 +59,20 @@ func main() {
 		fmt.Printf("hello-guest запущен\n  http://%s:%d\n  http://%s\n", *name+".local", port, actual)
 	}
 
+	// TLS на 8443: камера (сканер QR) работает только в secure context
+	certFile, keyFile, err := server.EnsureCert(*data)
+	if err != nil {
+		fmt.Printf("TLS недоступен: %v\n", err)
+	} else {
+		fmt.Printf("  https://%s:8443\n  https://%s:8443\n", *name+".local", ip)
+		go func() {
+			tlsSrv := &http.Server{Addr: ":8443", Handler: srv.Handler()}
+			if err := tlsSrv.ListenAndServeTLS(certFile, keyFile); err != nil {
+				fmt.Printf("TLS: %v\n", err)
+			}
+		}()
+	}
+
 	done := make(chan struct{})
 	if sd, err := zeroconf.RegisterProxy(*name, "_http._tcp", "local.", port, host, []string{ip}, nil, nil); err == nil {
 		go func() { <-done; sd.Shutdown() }()
