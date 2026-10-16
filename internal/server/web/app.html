@@ -84,7 +84,11 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 </div>
 
 <div id="eventPane" class="pane hide">
-  <h2>Мероприятия</h2>
+  <div id="offlineBar2" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
+  <div class="top" style="margin:-12px -12px 8px;padding:8px 12px">
+    <h2 style="flex:1;margin:0">Мероприятия</h2>
+    <span id="liveDot2">❤</span>
+  </div>
   <button class="primary" onclick="openSrc()" style="margin-bottom:12px">Загрузить выгрузку</button>
   <div id="evList"></div>
 </div>
@@ -216,6 +220,7 @@ async function boot(){
     if(!localStorage.getItem('hg_pin')){document.getElementById('pinScreen').classList.remove('hide');return;}
   }
   loadQueue();
+  if(localStorage.getItem('hg_pick')){await pickEvent();return;}
   if(!event){await pickEvent();return;}
   await enterEvent(event);
 }
@@ -231,13 +236,14 @@ let showHidden=false;
 
 async function pickEvent(){
   clearInterval(timer);
+  localStorage.setItem('hg_pick','1');
   show('eventPane');
   const el=document.getElementById('evList');
   el.innerHTML='';
   let evs;
-  try{evs=await api('/api/events');}
+  try{evs=await api('/api/events');setLive(true);}
   catch(e){
-    el.innerHTML='<p style="color:var(--err)">Нет связи с сервером</p>';
+    setLive(false);
     if(event){
       const d=document.createElement('div');d.className='row';
       d.innerHTML=`<div class="nm">${esc(event)}<div class="sub">последнее событие (из кэша)</div></div>`;
@@ -291,6 +297,7 @@ async function toggleEventHidden(ev,h){
 }
 
 async function enterEvent(ev){
+  localStorage.removeItem('hg_pick');
   show('app');
   document.getElementById('evTitle').textContent=ev;
   loadCache();render();
@@ -298,21 +305,31 @@ async function enterEvent(ev){
   clearInterval(timer);timer=setInterval(refresh,2500);
 }
 
+function setLive(ok){
+  ['liveDot','liveDot2'].forEach(id=>{
+    const d=document.getElementById(id);if(!d)return;
+    d.style.color=ok?'var(--ok)':'var(--err)';
+    d.classList.toggle('bad',!ok);
+  });
+  ['offlineBar','offlineBar2'].forEach(id=>{
+    const b=document.getElementById(id);if(!b)return;
+    b.classList.toggle('hide',ok);
+  });
+  ['queueN','queueN2'].forEach(id=>{
+    const n=document.getElementById(id);if(n)n.textContent=queue.length;
+  });
+}
+
 async function refresh(){
   try{
     const st=await api('/api/state?event='+encodeURIComponent(event));
     guests=st.guests||[];
     saveCache();
-    const dot=document.getElementById('liveDot');
-    dot.style.color='var(--ok)';dot.classList.remove('bad');
-    document.getElementById('offlineBar').classList.add('hide');
+    setLive(true);
     await flushQueue();
     render();
   }catch(e){
-    const dot=document.getElementById('liveDot');
-    dot.style.color='var(--err)';dot.classList.add('bad');
-    document.getElementById('offlineBar').classList.remove('hide');
-    document.getElementById('queueN').textContent=queue.length;
+    setLive(false);
     render();
   }
 }
@@ -457,17 +474,17 @@ async function onQR(text){
   qrLast=code;qrLastTS=Date.now();
   const msg=document.getElementById('qrMsg');
     if(/^https?:/i.test(code)){
-    msg.style.color='var(--err)';msg.textContent='QR содержит ссылку, а не номер билета';
-    buzz(600);flashQR('#b00020','✗','ПОПРОБУЙТЕ СКАНИРОВАТЬ ШТРИХ КОД',code.slice(0,60),2400);
+    msg.style.color='var(--err)';msg.textContent='QR содержит ссылку — попробуйте штрихкод';
+    buzz(600);flashQR('#b00020','✗','ПОПРОБУЙТЕ СКАНИРОВАТЬ ШТРИХ КОД',code.slice(0,60),1200);
     qpush({t:'qrmiss',event,code});return;
   }
   const g=guests.find(x=>(x.ticket_number||'')===code||(x.barcode||'')===code);
-  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,1800);qpush({t:'qrmiss',event,code});return;}
-  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,1200);return;}
+  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,900);qpush({t:'qrmiss',event,code});return;}
+  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,600);return;}
   g.arrived_at=new Date().toISOString();
   qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});
   msg.style.color='var(--ok)';msg.textContent='Засчитан: '+g.name;
-  buzz(80);flashQR('#1e8f4e','✓','ЗАСЧИТАН',g.name,900);
+  buzz(80);flashQR('#1e8f4e','✓','ЗАСЧИТАН',g.name,450);
   render();await flushQueue();
 }
 
