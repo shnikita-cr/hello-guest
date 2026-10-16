@@ -57,8 +57,8 @@ func sharedStrings(zr *zip.Reader) ([]string, error) {
 	defer f.Close()
 	var doc struct {
 		SI []struct {
-			T   string `xml:"t"`
-			R   []struct {
+			T string `xml:"t"`
+			R []struct {
 				T string `xml:"t"`
 			} `xml:"r"`
 		} `xml:"si"`

@@ -69,7 +69,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
     <h1 id="evTitle"></h1>
     <span id="liveDot">❤</span>
   </div>
-  <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span></div>
+  <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span> <span id="cPct" style="color:var(--mut)"></span></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR билет</button>
   <div id="list" class="list"></div>
@@ -107,6 +107,12 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
     <div class="stat"><div class="v" id="sRate">—</div><div class="l">гостей/мин (10 мин)</div></div>
     <div class="stat"><div class="v" id="sGap">—</div><div class="l">средний интервал</div></div>
   </div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="sQR">—</div><div class="l">отмечено по QR</div></div>
+    <div class="stat"><div class="v" id="sTap">—</div><div class="l">отмечено из списка</div></div>
+    <div class="stat"><div class="v" id="sWalk">—</div><div class="l">добавлено вручную</div></div>
+    <div class="stat"><div class="v" id="sMiss">—</div><div class="l">ложных QR</div></div>
+  </div>
   <h2 style="font-size:16px">По типам билета</h2>
   <div id="sTypes"></div>
   <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
@@ -127,7 +133,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   <h2 style="font-size:16px;margin-top:24px">Timepad API</h2>
   <div class="field">
     <label>ID события Timepad</label>
-    <input id="srcTpid" type="number" inputmode="numeric">
+    <input id="srcTpid" type="text" inputmode="numeric" pattern="[0-9]*">
   </div>
   <div class="field">
     <label>Токен (или пусто — из TIMEPAD_TOKEN)</label>
@@ -162,7 +168,8 @@ let timer=null;
 
 async function api(path,opt={}){
   const h=Object.assign({'X-Pin':pin},opt.headers||{});
-  if(opt.body&&!(opt.body instanceof Blob)&&typeof opt.body!=='string'){opt.body=JSON.stringify(opt.body);h['Content-Type']='application/json';}
+  const raw=opt.body instanceof ArrayBuffer||opt.body instanceof Blob||typeof opt.body==='string';
+  if(opt.body&&!raw){opt.body=JSON.stringify(opt.body);h['Content-Type']='application/json';}
   const r=await fetch(path,Object.assign({},opt,{headers:h}));
   if(r.status===401)throw new Error('pin');
   if(!r.ok)throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
@@ -275,6 +282,7 @@ function render(){
   const gs=filtered();const arrived=guests.filter(g=>g.arrived_at).length;
   document.getElementById('cArrived').textContent=arrived;
   document.getElementById('cTotal').textContent=guests.length;
+  document.getElementById('cPct').textContent=guests.length?'('+Math.round(arrived/guests.length*100)+'%)':'';
   gs.forEach(g=>{
     const d=document.createElement('div');
     d.className='row'+(g.arrived_at?' arrived':'');
@@ -292,7 +300,7 @@ async function tap(g){
     queue.push({t:'undo',event,guest_id:g.id});g.arrived_at='';
   }else{
     g.arrived_at=new Date().toISOString();
-    queue.push({t:'checkin',event,guest_id:g.id,device:deviceName()});
+    queue.push({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'tap'});
   }
   render();await flushQueue();
 }
@@ -308,9 +316,10 @@ async function flushQueue(){
   const q2=queue.slice();queue=[];
   for(const item of q2){
     try{
-      if(item.t==='checkin')await api('/api/checkin',{method:'POST',body:{event:item.event,guest_id:item.guest_id,device:item.device}});
+      if(item.t==='checkin')await api('/api/checkin',{method:'POST',body:{event:item.event,guest_id:item.guest_id,device:item.device,via:item.via}});
       if(item.t==='undo')await api('/api/undo',{method:'POST',body:{event:item.event,guest_id:item.guest_id}});
       if(item.t==='add')await api('/api/guest',{method:'POST',body:item.payload});
+      if(item.t==='qrmiss')await api('/api/qrmiss',{method:'POST',body:{event:item.event,code:item.code}});
     }catch(e){queue.push(item);}
   }
   document.getElementById('queueN').textContent=queue.length;
@@ -320,7 +329,7 @@ function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
 let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFlashT=null;
 
-function buzz(p){try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
+function buzz(p){try{const v=navigator.vibrate||navigator.mozVibrate;v&&v.call(navigator,p);}catch(e){}}
 
 // полноэкранный результат скана: зелёный ✓ успех, жёлтый ✓ уже отмечен, красный ✗ провал
 function flashQR(bg,icon,text,sub,ms){
@@ -384,11 +393,16 @@ async function onQR(text){
   if(code===qrLast&&Date.now()-qrLastTS<3000)return; // тот же код не чаще раза в 3 с
   qrLast=code;qrLastTS=Date.now();
   const msg=document.getElementById('qrMsg');
+  if(/^https?:/i.test(code)){
+    msg.style.color='var(--err)';msg.textContent='QR содержит ссылку, а не номер билета';
+    buzz(600);flashQR('#b00020','✗','ЭТО ССЫЛКА, НЕ НОМЕР',code.slice(0,60),2400);
+    queue.push({t:'qrmiss',event,code});return;
+  }
   const g=guests.find(x=>(x.ticket_number||'')===code);
-  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,1800);return;}
+  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,1800);queue.push({t:'qrmiss',event,code});return;}
   if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,1200);return;}
   g.arrived_at=new Date().toISOString();
-  queue.push({t:'checkin',event,guest_id:g.id,device:deviceName()});
+  queue.push({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});
   msg.style.color='var(--ok)';msg.textContent='Засчитан: '+g.name;
   buzz(80);flashQR('#1e8f4e','✓','ЗАСЧИТАН',g.name,900);
   render();await flushQueue();
@@ -408,7 +422,7 @@ async function doImport(){
   log.style.color='var(--mut)';log.textContent='Импорт…';
   try{
     const body=await f.arrayBuffer();
-    const r=await api('/api/import?event='+encodeURIComponent(ev),{method:'POST',headers:{'Content-Type':'text/csv'},body});
+    const r=await api('/api/import?event='+encodeURIComponent(ev),{method:'POST',body});
     log.style.color='var(--ok)';
     log.textContent=`Готово: всего ${r.total}, новых ${r.added}, обновлено ${r.updated}`;
     event=ev;localStorage.setItem('hg_event',ev);
@@ -438,7 +452,7 @@ async function saveGuest(mark){
   const payload={event,name,phone:document.getElementById('aPhone').value.trim(),email:document.getElementById('aEmail').value.trim(),ticket_type:document.getElementById('aType').value.trim()};
   try{
     const r=await api('/api/guest',{method:'POST',body:payload});
-    if(mark)queue.push({t:'checkin',event,guest_id:r.id,device:deviceName()});
+    if(mark)queue.push({t:'checkin',event,guest_id:r.id,device:deviceName(),via:'tap'});
     ['aName','aPhone','aEmail','aType'].forEach(i=>document.getElementById(i).value='');
     closePanes();await refresh();
   }catch(e){document.getElementById('addErr').textContent=e.message;}
@@ -463,6 +477,13 @@ async function openStats(){
     d.innerHTML=`<div class="t">${esc(t)}</div><div class="f"><i style="width:${pct}%"></i></div><div>${v.a}/${v.n}</div>`;
     el.appendChild(d);
   });
+  try{
+    const st=await api('/api/stats?event='+encodeURIComponent(event));
+    document.getElementById('sQR').textContent=st.qr;
+    document.getElementById('sTap').textContent=st.tap;
+    document.getElementById('sWalk').textContent=st.walkins;
+    document.getElementById('sMiss').textContent=st.false_qr;
+  }catch(e){}
 }
 
 window.addEventListener('online',()=>{flushQueue();refresh();});

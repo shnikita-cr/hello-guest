@@ -40,11 +40,11 @@ func TestUpsertAndSearch(t *testing.T) {
 func TestCheckinIdempotent(t *testing.T) {
 	s := tempStore(t)
 	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})
-	first, err := s.Checkin("e1", "g1", "tablet-1", time.Now())
+	first, err := s.Checkin("e1", "g1", "tablet-1", "tap", time.Now())
 	if err != nil || first {
 		t.Fatalf("first checkin already=%v err=%v", first, err)
 	}
-	second, err := s.Checkin("e1", "g1", "tablet-2", time.Now())
+	second, err := s.Checkin("e1", "g1", "tablet-2", "tap", time.Now())
 	if err != nil || !second {
 		t.Fatalf("second checkin already=%v err=%v", second, err)
 	}
@@ -60,7 +60,7 @@ func TestCheckinIdempotent(t *testing.T) {
 
 func TestCheckinUnknownGuest(t *testing.T) {
 	s := tempStore(t)
-	if _, err := s.Checkin("e1", "ghost", "d", time.Now()); err != ErrNotFound {
+	if _, err := s.Checkin("e1", "ghost", "d", "tap", time.Now()); err != ErrNotFound {
 		t.Fatalf("want ErrNotFound, got %v", err)
 	}
 }
@@ -70,7 +70,7 @@ func TestReplayRestoresState(t *testing.T) {
 	path := filepath.Join(dir, "data.ndjson")
 	s1, _ := Open(path)
 	s1.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})
-	s1.Checkin("e1", "g1", "d1", time.Now())
+	s1.Checkin("e1", "g1", "d1", "qr", time.Now())
 	s1.Close()
 
 	s2, err := Open(path)
@@ -91,7 +91,7 @@ func TestReplayRestoresState(t *testing.T) {
 func TestReimportPreservesArrival(t *testing.T) {
 	s := tempStore(t)
 	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A", Email: "a@x.com"}})
-	s.Checkin("e1", "g1", "d", time.Now())
+	s.Checkin("e1", "g1", "d", "tap", time.Now())
 	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A", Email: "a@x.com", TicketType: "VIP"}})
 	_, arrived := s.Count("e1")
 	if arrived != 1 {
@@ -106,7 +106,7 @@ func TestReimportPreservesArrival(t *testing.T) {
 func TestUndoCheckin(t *testing.T) {
 	s := tempStore(t)
 	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})
-	s.Checkin("e1", "g1", "d", time.Now())
+	s.Checkin("e1", "g1", "d", "tap", time.Now())
 	if err := s.UndoCheckin("e1", "g1"); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestRenameEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	s1.Upsert([]Guest{{ID: "g1", Event: "old", Name: "A"}})
-	s1.Checkin("old", "g1", "d1", time.Now())
+	s1.Checkin("old", "g1", "d1", "tap", time.Now())
 	if err := s1.RenameEvent("old", "new"); err != nil {
 		t.Fatal(err)
 	}
@@ -231,5 +231,28 @@ func TestHideEvent(t *testing.T) {
 	}
 	if err := s2.HideEvent("ghost", true); err != ErrNotFound {
 		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}
+
+func TestStats(t *testing.T) {
+	s := tempStore(t)
+	s.Upsert([]Guest{
+		{ID: "a", Event: "e1", Name: "A"},
+		{ID: "b", Event: "e1", Name: "B"},
+		{ID: "c", Event: "e1", Name: "C", Source: "walkin"},
+	})
+	s.Checkin("e1", "a", "d1", "qr", time.Now())
+	s.Checkin("e1", "b", "d1", "tap", time.Now())
+	s.QRMiss("e1", "117726839:97059462")
+	s.QRMiss("e1", "9999:8888")
+	st := s.Stats("e1")
+	if st.Total != 3 || st.Arrived != 2 || st.QR != 1 || st.Tap != 1 || st.Walkins != 1 || st.FalseQR != 2 {
+		t.Fatalf("stats: %+v", st)
+	}
+	s.UndoCheckin("e1", "a")
+	s.Checkin("e1", "a", "d2", "tap", time.Now())
+	st = s.Stats("e1")
+	if st.QR != 0 || st.Tap != 2 || st.Arrived != 2 {
+		t.Fatalf("stats after recheck: %+v", st)
 	}
 }
