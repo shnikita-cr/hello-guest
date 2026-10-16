@@ -132,10 +132,10 @@ input:focus,select:focus{outline:2px solid var(--acc)}
   <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
 </div>
 
-<div id="qrFail" class="hide" style="position:fixed;inset:0;background:#b00020;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center" onclick="this.classList.add('hide')">
-  <div style="font-size:36px;font-weight:800;color:#fff">НЕ НАЙДЕН</div>
-  <div id="qrFailCode" style="font-size:18px;color:#ffd7d7;font-family:monospace"></div>
-  <div style="color:#ffd7d7;font-size:14px">Коснитесь экрана, чтобы вернуться к камере</div>
+<div id="qrFlash" class="hide" onclick="this.classList.add('hide')" style="position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center">
+  <div id="qrFlashIcon" style="font-size:72px;font-weight:800;line-height:1;color:#fff"></div>
+  <div id="qrFlashText" style="font-size:26px;font-weight:700;color:#fff"></div>
+  <div id="qrFlashSub" style="font-size:16px;color:#fff;opacity:.85"></div>
 </div>
 
 <div id="qrPane" class="pane hide" style="z-index:20;background:#000">
@@ -273,15 +273,19 @@ async function flushQueue(){
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
-let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFailT=null;
+let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFlashT=null;
 
 function buzz(p){try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
 
-function qrFail(code){
-  buzz(600); // долгая вибрация на провал
-  document.getElementById('qrFailCode').textContent=code;
-  const f=document.getElementById('qrFail');f.classList.remove('hide');
-  clearTimeout(qrFailT);qrFailT=setTimeout(()=>f.classList.add('hide'),1800);
+// полноэкранный результат скана: зелёный ✓ успех, жёлтый ✓ уже отмечен, красный ✗ провал
+function flashQR(bg,icon,text,sub,ms){
+  const f=document.getElementById('qrFlash');
+  f.style.background=bg;
+  document.getElementById('qrFlashIcon').textContent=icon;
+  document.getElementById('qrFlashText').textContent=text;
+  document.getElementById('qrFlashSub').textContent=sub||'';
+  f.classList.remove('hide');
+  clearTimeout(qrFlashT);qrFlashT=setTimeout(()=>f.classList.add('hide'),ms);
 }
 
 async function startScan(){
@@ -336,12 +340,12 @@ async function onQR(text){
   qrLast=code;qrLastTS=Date.now();
   const msg=document.getElementById('qrMsg');
   const g=guests.find(x=>(x.ticket_number||'')===code);
-  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;qrFail(code);return;}
-  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);return;}
+  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,1800);return;}
+  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,1200);return;}
   g.arrived_at=new Date().toISOString();
   queue.push({t:'checkin',event,guest_id:g.id,device:deviceName()});
   msg.style.color='var(--ok)';msg.textContent='Засчитан: '+g.name;
-  buzz(80); // короткий импульс на успех
+  buzz(80);flashQR('#1e8f4e','✓','ЗАСЧИТАН',g.name,900);
   render();await flushQueue();
 }
 
