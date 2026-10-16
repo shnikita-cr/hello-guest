@@ -393,6 +393,11 @@ async function onQR(text){
   if(code===qrLast&&Date.now()-qrLastTS<3000)return; // тот же код не чаще раза в 3 с
   qrLast=code;qrLastTS=Date.now();
   const msg=document.getElementById('qrMsg');
+  if(/^https?:/i.test(code)){
+    msg.style.color='var(--err)';msg.textContent='QR содержит ссылку, а не номер билета';
+    buzz(600);flashQR('#b00020','✗','ЭТО ССЫЛКА, НЕ НОМЕР',code.slice(0,60),2400);
+    queue.push({t:'qrmiss',event,code});return;
+  }
   const g=guests.find(x=>(x.ticket_number||'')===code);
   if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,1800);queue.push({t:'qrmiss',event,code});return;}
   if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,1200);return;}
