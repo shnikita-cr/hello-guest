@@ -107,14 +107,14 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 
 <div id="srcPane" class="pane hide">
   <h2>Источники</h2>
-  <p style="color:var(--mut);font-size:14px">Импорт выгрузки Timepad (CSV) или подтягивание через API в текущее мероприятие.</p>
+  <p style="color:var(--mut);font-size:14px">Импорт выгрузки Timepad (CSV или XLSX) или подтягивание через API в текущее мероприятие.</p>
   <div class="field">
     <label>Мероприятие (куда загружать)</label>
     <input id="srcEvent" placeholder="напр. conf-2026">
   </div>
   <div class="field">
-    <label>Файл выгрузки CSV</label>
-    <input id="srcFile" type="file" accept=".csv,text/csv">
+    <label>Файл выгрузки CSV / XLSX</label>
+    <input id="srcFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
   </div>
   <button class="primary" onclick="doImport()">Импортировать файл</button>
   <h2 style="font-size:16px;margin-top:24px">Timepad API</h2>

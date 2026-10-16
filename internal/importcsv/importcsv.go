@@ -92,17 +92,30 @@ type table struct {
 	rows    [][]string
 }
 
-// Parse принимает выгрузку Timepad в CSV.
+// Parse принимает выгрузку Timepad в CSV или XLSX — формат определяется по магии файла.
 func Parse(r io.Reader, event string) ([]store.Guest, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
-	t, err := csvTable(data)
+	var tables []table
+	if isZip(data) {
+		tables, err = xlsxTables(data)
+	} else {
+		t, cerr := csvTable(data)
+		if cerr != nil {
+			return nil, cerr
+		}
+		tables = []table{t}
+	}
 	if err != nil {
 		return nil, err
 	}
-	return dedup(guestsFrom(t, event)), nil
+	var guests []store.Guest
+	for _, t := range tables {
+		guests = append(guests, guestsFrom(t, event)...)
+	}
+	return dedup(guests), nil
 }
 
 func csvTable(data []byte) (table, error) {

@@ -1,6 +1,10 @@
 package importcsv
 
 import (
+	"archive/zip"
+	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -132,5 +136,90 @@ func TestDetectFullTimepadHeaders(t *testing.T) {
 	}
 	if m.TicketNumber != "" {
 		t.Errorf("ticket_number = %q, want empty", m.TicketNumber)
+	}
+}
+
+func xlsxBytes(t *testing.T, sharedXML, sheetXML string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, f := range []struct{ name, body string }{
+		{"xl/sharedStrings.xml", sharedXML},
+		{"xl/worksheets/sheet1.xml", sheetXML},
+	} {
+		w, err := zw.Create(f.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.WriteString(w, f.body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func TestParseXLSX(t *testing.T) {
+	// словарь: 0-6 — шапка, 7-13 — строка 1, 14-19 — строка 2 (в B3 дырка)
+	shared := []string{"Заказ", "Код", "Фамилия", "Имя", "E-mail", "Тип билета", "Статус",
+		"90654090", "117589678", "Шепелев", "Андрей", "a@x.com", "Сольный билет", "оплачен",
+		"90655762", "Манахов", "Кирилл", "k@x.com", "Командный билет", "оплачен"}
+	var ss strings.Builder
+	ss.WriteString(`<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`)
+	for _, s := range shared {
+		fmt.Fprintf(&ss, `<si><t>%s</t></si>`, s)
+	}
+	ss.WriteString(`</sst>`)
+	sheet := `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>` +
+		`<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c><c r="D1" t="s"><v>3</v></c><c r="E1" t="s"><v>4</v></c><c r="F1" t="s"><v>5</v></c><c r="G1" t="s"><v>6</v></c></row>` +
+		`<row r="2"><c r="A2" t="s"><v>7</v></c><c r="B2" t="s"><v>8</v></c><c r="C2" t="s"><v>9</v></c><c r="D2" t="s"><v>10</v></c><c r="E2" t="s"><v>11</v></c><c r="F2" t="s"><v>12</v></c><c r="G2" t="s"><v>13</v></c></row>` +
+		// в строке 3 B пропущен — колонки обязаны сойтись по адресам ячеек
+		`<row r="3"><c r="A3" t="s"><v>14</v></c><c r="C3" t="s"><v>15</v></c><c r="D3" t="s"><v>16</v></c><c r="E3" t="s"><v>17</v></c><c r="F3" t="s"><v>18</v></c><c r="G3" t="s"><v>19</v></c></row>` +
+		`</sheetData></worksheet>`
+	guests, err := Parse(bytes.NewReader(xlsxBytes(t, ss.String(), sheet)), "e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(guests) != 2 {
+		t.Fatalf("want 2 guests, got %d: %+v", len(guests), guests)
+	}
+	for _, g := range guests {
+		if g.TicketNumber != "" {
+			t.Errorf("ticket_number stolen: %+v", g)
+		}
+		if g.TicketType == "" || g.OrderID == "" || g.Status == "" {
+			t.Errorf("fields lost after cell-gap row: %+v", g)
+		}
+		if !strings.HasPrefix(g.ID, "email:") {
+			t.Errorf("id should be email-based, got %q", g.ID)
+		}
+	}
+	if guests[0].Name != "Андрей Шепелев" && guests[1].Name != "Андрей Шепелев" {
+		t.Errorf("name wrong: %+v", guests)
+	}
+}
+
+func TestParseRealXLSXFile(t *testing.T) {
+	f, err := os.Open("../../Uchastniki_24_10_2026_--_NE_SPAT_MUZLOTO_--_na_16_10_2026_11-15 copy.xlsx")
+	if err != nil {
+		t.Skip("no sample xlsx")
+	}
+	defer f.Close()
+	guests, err := Parse(f, "muzloto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(guests) != 6 {
+		t.Errorf("want 6 guests from sample, got %d", len(guests))
+	}
+	for _, g := range guests {
+		if !strings.HasPrefix(g.ID, "email:") {
+			t.Errorf("id not email-based: %+v", g)
+		}
+		if g.Name == "" || g.TicketType == "" {
+			t.Errorf("missing fields: %+v", g)
+		}
 	}
 }
