@@ -27,7 +27,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .row .mark{width:14px;height:14px;border-radius:50%;background:#2a313a}
 .row.arrived .mark{background:var(--ok)}
 .row.dup{border-color:var(--warn)}
-.pane{position:fixed;inset:0;background:var(--bg);padding:12px;overflow:auto;z-index:10}
+.pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
 .pane h2{margin:0 0 12px;font-size:20px}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
@@ -150,7 +150,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   <div id="qrFlashSub" style="font-size:16px;color:#fff;opacity:.85"></div>
 </div>
 
-<div id="qrPane" class="pane hide" style="z-index:20;background:#000">
+<div id="qrPane" class="pane hide" style="z-index:20;background:#000;inset:0">
   <h2>Сканер QR</h2>
   <video id="qrVideo" autoplay playsinline muted style="width:100%;border-radius:12px;background:#111"></video>
   <div id="qrMsg" style="font-size:18px;font-weight:700;min-height:28px;margin:12px 0"></div>
@@ -182,15 +182,41 @@ async function submitPin(){
   catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
 }
 
-function show(id){['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
+function show(id){
+  ['eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
+  if(id!=='pinScreen')document.getElementById('app').classList.remove('hide');
+}
 function showTab(){closePanes();}
 function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 
 async function boot(){
   if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
-  try{await api('/api/pin');}catch(e){document.getElementById('pinScreen').classList.remove('hide');return;}
+  try{await api('/api/pin');}
+  catch(e){
+    if(e.message==='pin'){localStorage.removeItem('hg_pin');document.getElementById('pinScreen').classList.remove('hide');return;}
+    // нет связи — работаем с кэшем
+  }
+  loadQueue();
   if(!event){await pickEvent();return;}
   await enterEvent(event);
+}
+
+function loadQueue(){try{queue=JSON.parse(localStorage.getItem('hg_queue')||'[]');}catch(e){queue=[];}}
+function saveQueue(){localStorage.setItem('hg_queue',JSON.stringify(queue));}
+function qpush(item){queue.push(item);saveQueue();}
+
+function loadCache(){try{guests=JSON.parse(localStorage.getItem('hg_cache_'+event)||'[]');}catch(e){guests=[];}}
+function saveCache(){try{localStorage.setItem('hg_cache_'+event,JSON.stringify(guests));}catch(e){}}
+
+async function needPin(){
+  const p=prompt('PIN для доступа');
+  if(p===null)return false;
+  try{
+    const r=await fetch('/api/pin',{headers:{'X-Pin':p}});
+    if(r.ok)return true;
+  }catch(e){}
+  alert('Неверный PIN или нет связи');
+  return false;
 }
 
 let showHidden=false;
@@ -198,9 +224,20 @@ let showHidden=false;
 async function pickEvent(){
   clearInterval(timer);
   show('eventPane');
-  const evs=await api('/api/events');
   const el=document.getElementById('evList');
   el.innerHTML='';
+  let evs;
+  try{evs=await api('/api/events');}
+  catch(e){
+    el.innerHTML='<p style="color:var(--err)">Нет связи с сервером</p>';
+    if(event){
+      const d=document.createElement('div');d.className='row';
+      d.innerHTML=`<div class="nm">${esc(event)}<div class="sub">последнее событие (из кэша)</div></div>`;
+      d.onclick=()=>enterEvent(event);
+      el.appendChild(d);
+    }
+    return;
+  }
   if(!evs.length){el.innerHTML='<p style="color:var(--mut)">Нет мероприятий. Импортируйте выгрузку.</p>';return;}
   const hid=evs.filter(e=>e.hidden);
   let out=evs.filter(e=>!e.hidden);
@@ -248,6 +285,7 @@ async function toggleEventHidden(ev,h){
 async function enterEvent(ev){
   show('app');
   document.getElementById('evTitle').textContent=ev;
+  loadCache();render();
   await refresh();
   clearInterval(timer);timer=setInterval(refresh,2500);
 }
@@ -256,6 +294,7 @@ async function refresh(){
   try{
     const st=await api('/api/state?event='+encodeURIComponent(event));
     guests=st.guests||[];
+    saveCache();
     const dot=document.getElementById('liveDot');
     dot.style.color='var(--ok)';dot.classList.remove('bad');
     document.getElementById('offlineBar').classList.add('hide');
@@ -297,10 +336,10 @@ function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'
 async function tap(g){
   if(g.arrived_at){
     if(!confirm('Уже отмечен. Снять отметку?'))return;
-    queue.push({t:'undo',event,guest_id:g.id});g.arrived_at='';
+    qpush({t:'undo',event,guest_id:g.id});g.arrived_at='';
   }else{
     g.arrived_at=new Date().toISOString();
-    queue.push({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'tap'});
+    qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'tap'});
   }
   render();await flushQueue();
 }
@@ -322,10 +361,11 @@ async function flushQueue(){
       if(item.t==='qrmiss')await api('/api/qrmiss',{method:'POST',body:{event:item.event,code:item.code}});
     }catch(e){queue.push(item);}
   }
+  saveQueue();
   document.getElementById('queueN').textContent=queue.length;
 }
 
-function openAdd(){show('addPane');document.getElementById('aName').focus();}
+async function openAdd(){if(!await needPin())return;show('addPane');document.getElementById('aName').focus();}
 
 let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFlashT=null;
 
@@ -393,22 +433,23 @@ async function onQR(text){
   if(code===qrLast&&Date.now()-qrLastTS<3000)return; // тот же код не чаще раза в 3 с
   qrLast=code;qrLastTS=Date.now();
   const msg=document.getElementById('qrMsg');
-  if(/^https?:/i.test(code)){
+    if(/^https?:/i.test(code)){
     msg.style.color='var(--err)';msg.textContent='QR содержит ссылку, а не номер билета';
     buzz(600);flashQR('#b00020','✗','ЭТО ССЫЛКА, НЕ НОМЕР',code.slice(0,60),2400);
-    queue.push({t:'qrmiss',event,code});return;
+    qpush({t:'qrmiss',event,code});return;
   }
   const g=guests.find(x=>(x.ticket_number||'')===code);
-  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,1800);queue.push({t:'qrmiss',event,code});return;}
+  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,1800);qpush({t:'qrmiss',event,code});return;}
   if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,1200);return;}
   g.arrived_at=new Date().toISOString();
-  queue.push({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});
+  qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});
   msg.style.color='var(--ok)';msg.textContent='Засчитан: '+g.name;
   buzz(80);flashQR('#1e8f4e','✓','ЗАСЧИТАН',g.name,900);
   render();await flushQueue();
 }
 
-function openSrc(){
+async function openSrc(){
+  if(!await needPin())return;
   show('srcPane');
   document.getElementById('srcEvent').value=event||'';
   document.getElementById('srcLog').textContent='';
@@ -452,7 +493,7 @@ async function saveGuest(mark){
   const payload={event,name,phone:document.getElementById('aPhone').value.trim(),email:document.getElementById('aEmail').value.trim(),ticket_type:document.getElementById('aType').value.trim()};
   try{
     const r=await api('/api/guest',{method:'POST',body:payload});
-    if(mark)queue.push({t:'checkin',event,guest_id:r.id,device:deviceName(),via:'tap'});
+    if(mark)qpush({t:'checkin',event,guest_id:r.id,device:deviceName(),via:'tap'});
     ['aName','aPhone','aEmail','aType'].forEach(i=>document.getElementById(i).value='');
     closePanes();await refresh();
   }catch(e){document.getElementById('addErr').textContent=e.message;}
