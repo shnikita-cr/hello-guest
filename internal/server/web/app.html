@@ -437,19 +437,21 @@ let ac;
 function buzz(p){
   try{
     const v=navigator.vibrate||navigator.mozVibrate;
-    if(v&&v.call(navigator,p))return; // вибрация есть и сработала — звук не нужен
+    if(v)v.call(navigator,p);
   }catch(e){}
-  // нет вибрации (iOS) или она не сработала — звуковой щелчок
+  // звук играет всегда: вибрация на части устройств «успешна», но не слышна
   try{
     if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
-    if(ac.state==='suspended')ac.resume();
-    const d=Math.min(p,600)/1000; // 600 = длинный низкий тон ошибки, 80 = короткий успех
-    const o=ac.createOscillator(),g=ac.createGain();
-    o.frequency.value=p>=600?220:880;
-    g.gain.setValueAtTime(0.6,ac.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
-    o.connect(g);g.connect(ac.destination);
-    o.start();o.stop(ac.currentTime+d);
+    const play=()=>{
+      const d=Math.min(p,600)/1000; // 600 = длинный низкий тон ошибки, 80 = короткий успех
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.frequency.value=p>=600?220:880;
+      g.gain.setValueAtTime(0.6,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
+      o.connect(g);g.connect(ac.destination);
+      o.start();o.stop(ac.currentTime+d);
+    };
+    if(ac.state==='suspended')ac.resume().then(play);else play();
   }catch(e){}
 }
 
