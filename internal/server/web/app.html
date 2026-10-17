@@ -198,12 +198,18 @@ function renderTabs(){
   const authed=!!localStorage.getItem('hg_pin');
   document.getElementById('tabPin').classList.toggle('hide',authed);
   document.getElementById('tabList').classList.toggle('hide',!authed);
-  document.getElementById('tabAdd').classList.toggle('hide',!authed);
   document.getElementById('tabSrc').classList.toggle('hide',!authed);
+  updateTabAdd();
+}
+// «+ Гость» — только когда открыто конкретное мероприятие
+function updateTabAdd(){
+  const on=!!localStorage.getItem('hg_pin')&&!!event&&screen!=='eventPane'&&screen!=='pin';
+  document.getElementById('tabAdd').classList.toggle('hide',!on);
 }
 
 function showPin(){
   clearInterval(timer);
+  screen='pin';updateTabAdd();
   setActiveTab('tabPin');
   ['eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.add('hide'));
   document.getElementById('app').classList.add('hide');
@@ -212,6 +218,7 @@ function showPin(){
 
 function setActiveTab(id){['tabPin','tabList','tabAdd','tabStats','tabSrc'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));}
 function show(id){
+  screen=id;updateTabAdd();
   ['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
   setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
 }
