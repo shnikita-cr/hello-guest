@@ -16,9 +16,9 @@ make build-docker  # через Docker-контейнер, Go не нужен
 Дополнительно:
 
 ```sh
-make test      # тесты, через Docker
-make release   # 5 бинарников в dist/ для других ОС + SHA256SUMS, через Docker
-make docker    # образ hello-guest:$(VERSION), тег из git describe
+make test           # тесты, через Docker
+make release-docker # 5 бинарников в dist/ для других ОС + SHA256SUMS, через Docker
+make docker-image   # образ hello-guest:$(VERSION), тег из git describe
 ```
 
 Если Go установлен, для разработки можно без сборки:
@@ -50,7 +50,7 @@ go run ./cmd/hello-guest --addr :8080
 
 hello-guest запущен
   http://hello-guest.local      # из той же Wi-Fi (mDNS)
-  http://192.168.35.2           # по IP, запасной вариант
+  http://192.168.1.42           # по IP компьютера, запасной вариант
 ```
 
 Если приложение запустилось на 8080 (нет прав на 80), к обоим адресам в консоли добавляется `:8080`. С телефона в той же сети откройте адрес, введите PIN; дальше всё делается касаниями.
@@ -60,8 +60,8 @@ hello-guest запущен
 Собрать образ и запустить контейнер:
 
 ```sh
-docker build -t hello-guest .
-docker run -d --name hg -p 8080:80 -v hgdata:/app/data --memory=128m --cpus=0.5 hello-guest
+make docker-image
+docker run -d --name hg -p 8080:80 -v hgdata:/app/data --memory=128m --cpus=0.5 hello-guest:$(git describe --tags --always)
 docker logs hg   # PIN при первом запуске
 ```
 
