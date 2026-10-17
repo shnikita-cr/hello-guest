@@ -59,6 +59,7 @@ func main() {
 	}
 	defer st.Close()
 
+	server.Version = version
 	srv := server.New(cfg, st, *data)
 	listener, port := listen(*addr)
 	ip := hostIP()

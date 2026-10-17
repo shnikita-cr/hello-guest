@@ -83,6 +83,9 @@ type Server struct {
 	dataDir string
 }
 
+// Version выставляется из cmd приложения (git describe).
+var Version = "dev"
+
 func New(cfg *Config, st *store.Store, dataDir string) *Server {
 	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux(), now: time.Now, dataDir: dataDir}
 	s.routes()
@@ -93,6 +96,7 @@ func (s *Server) Handler() http.Handler { return s.mux }
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("/api/pin", s.handlePin)
+	s.mux.HandleFunc("/api/version", s.handleVersion)
 	s.mux.HandleFunc("/api/events", s.authed(s.handleEvents))
 	s.mux.HandleFunc("/api/state", s.authed(s.handleState))
 	s.mux.HandleFunc("/api/checkin", s.authed(s.handleCheckin))
@@ -134,6 +138,10 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeErr(w, http.StatusUnauthorized, "bad pin")
+}
+
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]string{"version": Version})
 }
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
