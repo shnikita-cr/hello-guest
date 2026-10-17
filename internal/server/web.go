@@ -57,6 +57,17 @@ func (s *Server) handleZXing(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+func (s *Server) handleSW(w http.ResponseWriter, r *http.Request) {
+	b, err := webFS.ReadFile("web/sw.js")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/javascript")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(b)
+}
+
 func importFrom(r io.Reader, event string) ([]store.Guest, error) {
 	return importcsv.Parse(r, event)
 }
