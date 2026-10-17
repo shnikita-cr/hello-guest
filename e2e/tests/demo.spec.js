@@ -23,6 +23,17 @@ test('демо: вход, список, камера сканера и отме�
     .poll(() => page.evaluate(() => !!document.getElementById('qrVideo').srcObject))
     .toBe(true);
 
+  // сердце на сканере должно биться
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.getElementById('liveDot3')).animationName))
+    .toBe('beat');
+
+  // потеря сети: полоска появляется на открытой странице
+  await page.context().setOffline(true);
+  await expect(page.locator('#offlineBar6')).toBeVisible();
+  await page.context().setOffline(false);
+  await expect(page.locator('#offlineBar6')).toBeHidden({ timeout: 10000 });
+
   // QR на фейковой камере нет — подаём распознанный код напрямую в обработчик
   await page.evaluate(() => onQR('10002'));
   await expect(page.locator('#qrMsg')).toContainText('Отмечен: Борис Смирнов');
