@@ -201,12 +201,17 @@ function renderTabs(){
 
 function showPin(){
   clearInterval(timer);
+  setActiveTab('tabPin');
   ['eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.add('hide'));
   document.getElementById('app').classList.add('hide');
   document.getElementById('pinScreen').classList.remove('hide');
 }
 
-function show(id){['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));}
+function setActiveTab(id){['tabPin','tabList','tabAdd','tabStats','tabSrc'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));}
+function show(id){
+  ['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
+  setActiveTab({app:'tabList',addPane:'tabAdd',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
+}
 function showTab(){closePanes();}
 function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 
