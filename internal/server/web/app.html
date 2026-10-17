@@ -240,12 +240,13 @@ function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 async function boot(){
   renderTabs();
   if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
-  try{await api('/api/pin');document.getElementById('pinScreen').classList.add('hide');}
+  try{await api('/api/pin');}
   catch(e){
     if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();document.getElementById('pinScreen').classList.remove('hide');return;}
     // нет связи — работаем с кэшем
     if(!localStorage.getItem('hg_pin')){document.getElementById('pinScreen').classList.remove('hide');return;}
   }
+  document.getElementById('pinScreen').classList.add('hide');
   loadQueue();
   if(localStorage.getItem('hg_pick')){await pickEvent();return;}
   if(!event){await pickEvent();return;}
