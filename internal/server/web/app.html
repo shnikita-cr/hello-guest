@@ -84,11 +84,11 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 </div>
 
 <div id="eventPane" class="pane hide">
-  <div id="offlineBar2" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
-  <div class="top" style="margin:-12px -12px 8px;padding:8px 12px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
     <h2 style="flex:1;margin:0">Мероприятия</h2>
     <span id="liveDot2">❤</span>
   </div>
+  <div id="offlineBar2" class="offline hide" style="margin:0 0 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
   <button class="primary" onclick="openSrc()" style="margin-bottom:12px">Загрузить выгрузку</button>
   <div id="evList"></div>
 </div>
