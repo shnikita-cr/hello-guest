@@ -405,9 +405,9 @@ func (s *Server) handleAdminReport(w http.ResponseWriter, r *http.Request) {
 		if g.ArrivedAt != "" {
 			switch via[g.ID] {
 			case "qr":
-				method = "QR"
+				method = "QR/штрихкод"
 			case "tap":
-				method = "список"
+				method = "вручную"
 			}
 		}
 		src := ""

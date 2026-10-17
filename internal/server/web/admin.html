@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👨‍💻</text></svg>">
 <title>Hello Guest — админ</title>
 <style>
 :root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--warn:#e67e22;--err:#e74c3c;--acc:#3b82f6}
@@ -122,8 +123,8 @@ async function loadScans(){
   for(const s of sc){
     const code=(s.code||'').length>48?s.code.slice(0,48)+'…':s.code||'';
     let who;
-    if(s.kind==='checkin')who=`<span class="ok">✓ ${esc(s.guest)}</span> · ${s.via==='qr'?'QR/штрихкод':'список'}${s.device?' · '+esc(s.device):''}`;
-    else if(s.kind==='again')who=`<span style="color:var(--warn)">↺ повторно: ${esc(s.guest)} · ${s.via==='qr'?'QR/штрихкод':'список'}</span>${s.device?' · '+esc(s.device):''}`;
+    if(s.kind==='checkin')who=`<span class="ok">✓ ${esc(s.guest)}</span> · ${s.via==='qr'?'QR/штрихкод':'вручную'}${s.device?' · '+esc(s.device):''}`;
+    else if(s.kind==='again')who=`<span style="color:var(--warn)">↺ повторно: ${esc(s.guest)} · ${s.via==='qr'?'QR/штрихкод':'вручную'}</span>${s.device?' · '+esc(s.device):''}`;
     else if(s.kind==='undo')who=`<span style="color:var(--warn)">− снята отметка: ${esc(s.guest)}</span>`;
     else if(s.kind==='add')who=`<span class="ok">+ добавлен вручную: ${esc(s.guest)}</span>`;
     else who=`<span class="miss">✗ не найден: ${esc(code)}</span>`;
