@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -22,8 +24,9 @@ import (
 )
 
 type Config struct {
-	PinHash string `json:"pin_hash"`
-	PinSalt string `json:"pin_salt"`
+	PinHash  string `json:"pin_hash"`
+	PinSalt  string `json:"pin_salt"`
+	PinPlain string `json:"pin_plain,omitempty"`
 }
 
 func LoadOrCreateConfig(dir string) (*Config, string, error) {
@@ -39,12 +42,19 @@ func LoadOrCreateConfig(dir string) (*Config, string, error) {
 		return nil, "", err
 	}
 	salt := randHex(16)
-	c := &Config{PinHash: hashPin(pin, salt), PinSalt: salt}
-	b, _ := json.MarshalIndent(c, "", "  ")
-	if err := os.WriteFile(path, b, 0o600); err != nil {
+	c := &Config{PinHash: hashPin(pin, salt), PinSalt: salt, PinPlain: pin}
+	if err := c.save(dir); err != nil {
 		return nil, "", err
 	}
 	return c, pin, nil
+}
+
+func (c *Config) save(dir string) error {
+	b, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "config.json"), b, 0o600)
 }
 
 func (c *Config) Check(pin string) bool {
@@ -81,13 +91,25 @@ type Server struct {
 	mux     *http.ServeMux
 	now     func() time.Time
 	dataDir string
+
+	// StatusIPs — адреса для экрана статуса; TriggerBackup — ручной бэкап из cmd;
+	// OnStop/OnRestart — стоп и перезапуск процесса (живут в cmd).
+	StatusIPs     []string
+	TriggerBackup func() (string, error)
+	OnStop        func()
+	OnRestart     func()
+
+	seenMu  sync.Mutex
+	seen    map[string]time.Time
+	started time.Time
 }
 
 // Version выставляется из cmd приложения (git describe).
 var Version = "dev"
 
 func New(cfg *Config, st *store.Store, dataDir string) *Server {
-	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux(), now: time.Now, dataDir: dataDir}
+	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux(), now: time.Now, dataDir: dataDir,
+		seen: map[string]time.Time{}, started: time.Now()}
 	s.routes()
 	return s
 }
@@ -114,11 +136,65 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/sw.js", s.handleSW)
 	s.mux.HandleFunc("/zxing.js", s.handleZXing)
 	s.mux.HandleFunc("/admin", s.handleAdmin)
+	s.mux.HandleFunc("/status", s.local(s.handleStatusPage))
+	s.mux.HandleFunc("/api/status", s.local(s.handleStatusAPI))
+	s.mux.HandleFunc("/api/status/pin", s.local(s.handleStatusPin))
+	s.mux.HandleFunc("/api/admin/backup", s.local(s.handleBackupNow))
+	s.mux.HandleFunc("/api/admin/stop", s.local(s.handleStop))
+	s.mux.HandleFunc("/api/admin/restart", s.local(s.handleRestart))
 	s.mux.HandleFunc("/", s.handleIndex)
+}
+
+func remoteHost(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+// local: экран статуса показывает PIN, поэтому только с самого ноутбука;
+// запросы через cloudflared приходят с loopback, но с заголовками крайнего — их закрываем.
+func (s *Server) local(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := net.ParseIP(remoteHost(r))
+		if ip == nil || !ip.IsLoopback() || r.Header.Get("Cf-Ray") != "" || r.Header.Get("Cf-Connecting-Ip") != "" {
+			writeErr(w, http.StatusForbidden, "local only")
+			return
+		}
+		h(w, r)
+	}
+}
+
+// touch: считаем клиентов по опросу /api/pin (каждые 2.5 с со страниц),
+// loopback не считаем — это сам ноутбук.
+func (s *Server) touch(r *http.Request) {
+	host := remoteHost(r)
+	if ip := net.ParseIP(host); ip == nil || ip.IsLoopback() {
+		return
+	}
+	s.seenMu.Lock()
+	s.seen[host] = time.Now()
+	s.seenMu.Unlock()
+}
+
+func (s *Server) clients() int {
+	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+	n := 0
+	for ip, t := range s.seen {
+		if time.Since(t) > 10*time.Second {
+			delete(s.seen, ip)
+			continue
+		}
+		n++
+	}
+	return n
 }
 
 func (s *Server) authed(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		s.touch(r)
 		pin := r.Header.Get("X-Pin")
 		if pin == "" {
 			pin = r.URL.Query().Get("pin")
@@ -132,12 +208,95 @@ func (s *Server) authed(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
+	s.touch(r)
 	pin := r.Header.Get("X-Pin")
 	if s.cfg.Check(pin) {
 		writeJSON(w, map[string]bool{"ok": true})
 		return
 	}
 	writeErr(w, http.StatusUnauthorized, "bad pin")
+}
+
+func (s *Server) handleStatusPage(w http.ResponseWriter, r *http.Request) {
+	s.serveHTML(w, r, "web/status.html")
+}
+
+func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]any{
+		"version": Version,
+		"clients": s.clients(),
+		"ips":     s.StatusIPs,
+		"pin":     s.cfg.PinPlain,
+		"uptime":  int(time.Since(s.started).Seconds()),
+		"backup":  s.TriggerBackup != nil,
+	})
+}
+
+func requirePost(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "post only")
+		return false
+	}
+	return true
+}
+
+func (s *Server) handleStatusPin(w http.ResponseWriter, r *http.Request) {
+	if !requirePost(w, r) {
+		return
+	}
+	var body struct {
+		Pin string `json:"pin"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Pin == "" {
+		writeErr(w, http.StatusBadRequest, "bad body")
+		return
+	}
+	if !s.cfg.Check(body.Pin) {
+		writeErr(w, http.StatusBadRequest, "неверный pin")
+		return
+	}
+	s.cfg.PinPlain = body.Pin
+	if err := s.cfg.save(s.dataDir); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleBackupNow(w http.ResponseWriter, r *http.Request) {
+	if !requirePost(w, r) {
+		return
+	}
+	if s.TriggerBackup == nil {
+		writeErr(w, http.StatusNotImplemented, "backup недоступен")
+		return
+	}
+	file, err := s.TriggerBackup()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "file": file, "skipped": file == ""})
+}
+
+func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
+	if !requirePost(w, r) {
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
+	if s.OnStop != nil {
+		go s.OnStop()
+	}
+}
+
+func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
+	if !requirePost(w, r) {
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
+	if s.OnRestart != nil {
+		go s.OnRestart()
+	}
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {

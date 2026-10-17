@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -83,5 +84,123 @@ func TestAdminReport(t *testing.T) {
 	s.Handler().ServeHTTP(rr2, req2)
 	if rr2.Code != 401 {
 		t.Fatalf("without pin must be 401, got %d", rr2.Code)
+	}
+}
+
+func TestStatusLocalOnly(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "j.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	cfg := &Config{PinHash: hashPin("123456", "salt"), PinSalt: "salt", PinPlain: "123456"}
+	s := New(cfg, st, dir)
+
+	// чужой адрес — закрыто
+	req := httptest.NewRequest("GET", "/api/status", nil)
+	rr := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("LAN must be 403, got %d", rr.Code)
+	}
+
+	// loopback, но через cloudflared (есть заголовки крайнего) — закрыто
+	reqT := httptest.NewRequest("GET", "/api/status", nil)
+	reqT.RemoteAddr = "127.0.0.1:4444"
+	reqT.Header.Set("Cf-Ray", "abc")
+	rrT := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rrT, reqT)
+	if rrT.Code != http.StatusForbidden {
+		t.Fatalf("tunnel must be 403, got %d", rrT.Code)
+	}
+
+	// сам ноутбук — PIN виден
+	reqL := httptest.NewRequest("GET", "/api/status", nil)
+	reqL.RemoteAddr = "127.0.0.1:4444"
+	rrL := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rrL, reqL)
+	if rrL.Code != 200 || !strings.Contains(rrL.Body.String(), `"pin":"123456"`) {
+		t.Fatalf("local: code=%d body=%s", rrL.Code, rrL.Body.String())
+	}
+}
+
+func TestStatusBackupAndPin(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "j.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	cfg := &Config{PinHash: hashPin("123456", "salt"), PinSalt: "salt"}
+	s := New(cfg, st, dir)
+	post := func(path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", path, strings.NewReader(body))
+		req.RemoteAddr = "127.0.0.1:4444"
+		rr := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rr, req)
+		return rr
+	}
+
+	if rr := post("/api/admin/backup", ""); rr.Code != http.StatusNotImplemented {
+		t.Fatalf("no hook must be 501, got %d", rr.Code)
+	}
+	s.TriggerBackup = func() (string, error) { return "/tmp/a.zip", nil }
+	if rr := post("/api/admin/backup", ""); rr.Code != 200 || !strings.Contains(rr.Body.String(), "/tmp/a.zip") {
+		t.Fatalf("backup: code=%d body=%s", rr.Code, rr.Body.String())
+	}
+
+	if rr := post("/api/status/pin", `{"pin":"000000"}`); rr.Code != http.StatusBadRequest {
+		t.Fatalf("wrong pin must be 400, got %d", rr.Code)
+	}
+	if rr := post("/api/status/pin", `{"pin":"123456"}`); rr.Code != 200 {
+		t.Fatalf("pin save: code=%d body=%s", rr.Code, rr.Body.String())
+	}
+	c, _, err := LoadOrCreateConfig(dir)
+	if err != nil || c.PinPlain != "123456" {
+		t.Fatalf("pin_plain not saved: err=%v", err)
+	}
+}
+
+func TestStatusStopRestart(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "j.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	s := New(&Config{PinHash: hashPin("1", "salt"), PinSalt: "salt"}, st, dir)
+	stopped := make(chan bool, 1)
+	restarted := make(chan bool, 1)
+	s.OnStop = func() { stopped <- true }
+	s.OnRestart = func() { restarted <- true }
+
+	post := func(path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", path, nil)
+		req.RemoteAddr = "127.0.0.1:4444"
+		rr := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rr, req)
+		return rr
+	}
+	if rr := post("/api/admin/stop"); rr.Code != 200 {
+		t.Fatalf("stop: %d", rr.Code)
+	}
+	if rr := post("/api/admin/restart"); rr.Code != 200 {
+		t.Fatalf("restart: %d", rr.Code)
+	}
+	for _, ch := range []chan bool{stopped, restarted} {
+		select {
+		case <-ch:
+		case <-time.After(time.Second):
+			t.Fatal("OnStop/OnRestart не вызваны")
+		}
+	}
+
+	get := httptest.NewRequest("GET", "/api/admin/stop", nil)
+	get.RemoteAddr = "127.0.0.1:4444"
+	rrG := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rrG, get)
+	if rrG.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("GET stop must be 405, got %d", rrG.Code)
 	}
 }
