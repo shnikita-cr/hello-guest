@@ -1,0 +1,74 @@
+name: release
+
+on:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: write
+
+# release-запуски выстраиваются в очередь: параллельные мержи
+# получают теги последовательно и не конфликтуют
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: test
+        run: go test ./...
+      - name: compute version
+        id: ver
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          LATEST=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          [ -z "$LATEST" ] && LATEST=v0.0.0
+          IFS=. read -r MA MI PA <<< "${LATEST#v}"
+          PARENTS=$(git rev-list --parents -n 1 HEAD | wc -w)
+          if [ "$BRANCH" = "main" ]; then
+            MA=$((MA+1)); MI=0; PA=0
+          elif [ "$PARENTS" -gt 2 ]; then
+            MI=$((MI+1)); PA=0
+          else
+            PA=$((PA+1))
+          fi
+          echo "tag=v$MA.$MI.$PA" >> "$GITHUB_OUTPUT"
+      - name: build binaries
+        run: |
+          V=${{ steps.ver.outputs.tag }}
+          mkdir -p dist
+          build() {
+            GOOS=$1 GOARCH=$2 EXT=$3
+            GOOS=$GOOS GOARCH=$GOARCH go build -trimpath \
+              -ldflags "-s -w -X main.version=$V" \
+              -o dist/hello-guest-$GOOS-$GOARCH$EXT ./cmd/hello-guest
+          }
+          build darwin arm64 ""
+          build linux amd64 ""
+          build linux arm64 ""
+          build windows amd64 ".exe"
+          ls -la dist
+      - name: tag and release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          PREV=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          NOTES="hello-guest $TAG"
+          if [ -n "$PREV" ]; then
+            NOTES="$NOTES
+
+          $(git log --pretty=format:'- %s' $PREV..HEAD | grep -v '^- release')"
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" dist/* --title "$TAG" --notes "$NOTES"
