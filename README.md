@@ -98,7 +98,7 @@ docker logs hg   # PIN при первом запуске
 | GET | `/api/state?event=` | все гости мероприятия |
 | POST | `/api/checkin` | `{"event","guest_id","device","via"}` — отмечает гостя пришедшим; повторный вызов возвращает `already:true` и ничего не меняет |
 | POST | `/api/undo` | снять отметку |
-| POST | `/api/guest` | до-гость: `{"event","name","phone","email","ticket_type"}` |
+| POST | `/api/guest` | `{"event","name","phone","email","ticket_type"}` — добавляет гостя, которого нет в выгрузке (пришёл без записи) |
 | POST | `/api/import?event=` | тело — CSV-файл |
 | POST | `/api/refresh` | `{"event","timepad_id","token"}` — загрузка данных из Timepad API |
 | GET | `/api/stats?event=` | счётчики |
