@@ -553,13 +553,23 @@ async function doRefresh(){
 async function saveGuest(mark){
   const name=document.getElementById('aName').value.trim();
   if(!name){document.getElementById('addErr').textContent='Имя обязательно';return;}
-  const payload={event,name,phone:document.getElementById('aPhone').value.trim(),email:document.getElementById('aEmail').value.trim(),ticket_type:document.getElementById('aType').value.trim()};
-  try{
-    const r=await api('/api/guest',{method:'POST',body:payload});
-    if(mark)qpush({t:'checkin',event,guest_id:r.id,device:deviceName(),via:'tap'});
-    ['aName','aPhone','aEmail','aType'].forEach(i=>document.getElementById(i).value='');
-    closePanes();await refresh();
-  }catch(e){document.getElementById('addErr').textContent=e.message;}
+  if(!event){document.getElementById('addErr').textContent='Сначала выберите мероприятие';return;}
+  const payload={id:'walkin:'+Math.random().toString(36).slice(2,10),event,name,
+    phone:document.getElementById('aPhone').value.trim(),
+    email:document.getElementById('aEmail').value.trim(),
+    ticket_type:document.getElementById('aType').value.trim()};
+  if(navigator.onLine){
+    try{await api('/api/guest',{method:'POST',body:payload});}
+    catch(e){document.getElementById('addErr').textContent=e.message;return;}
+  }else{
+    qpush({t:'add',payload});
+  }
+  if(mark)qpush({t:'checkin',event,guest_id:payload.id,device:deviceName(),via:'tap'});
+  guests.push(Object.assign({arrived_at:mark?new Date().toISOString():''},payload));
+  saveCache();render();
+  ['aName','aPhone','aEmail','aType'].forEach(i=>document.getElementById(i).value='');
+  closePanes();
+  await flushQueue();
 }
 
 async function openStats(){
