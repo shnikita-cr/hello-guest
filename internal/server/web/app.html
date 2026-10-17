@@ -49,8 +49,8 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .row.muted{opacity:.55}
 button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:1px solid #3a424d}
 @keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
-#liveDot{display:inline-block;font-size:18px;line-height:1;user-select:none;animation:beat 1s ease-in-out infinite}
-#liveDot.bad{animation-duration:.5s}
+#liveDot,#liveDot2{display:inline-block;font-size:18px;line-height:1;user-select:none;animation:beat 1s ease-in-out infinite}
+#liveDot.bad,#liveDot2.bad{animation-duration:.5s}
 </style>
 </head>
 <body>
@@ -210,9 +210,9 @@ function showPin(){
 function setActiveTab(id){['tabPin','tabList','tabAdd','tabStats','tabSrc'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));}
 function show(id){
   ['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
-  setActiveTab({app:'tabList',addPane:'tabAdd',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
+  setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
 }
-function showTab(){closePanes();}
+function showTab(){pickEvent();}
 function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 
 async function boot(){
