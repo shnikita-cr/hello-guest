@@ -57,11 +57,12 @@ hello-guest запущен
 
 ### В Docker-контейнере
 
-Собрать образ и запустить контейнер:
+Собрать образ и запустить контейнер (данные — в папке `data/` репозитория, она в .gitignore):
 
 ```sh
 make docker-image
-docker run -d --name hg -p 8080:80 -v hgdata:/app/data --memory=128m --cpus=0.5 hello-guest:$(git describe --tags --always)
+mkdir -p data
+docker run -d --name hg -p 8080:80 -v ./data:/app/data --memory=128m --cpus=0.5 hello-guest:$(git describe --tags --always)
 docker logs hg   # PIN при первом запуске
 ```
 
