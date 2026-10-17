@@ -1,17 +1,21 @@
 package server
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"hello-guest/internal/store"
 	"hello-guest/internal/timepad"
@@ -72,14 +76,15 @@ func randHex(n int) string {
 }
 
 type Server struct {
-	cfg   *Config
-	store *store.Store
-	mux   *http.ServeMux
-	now   func() time.Time
+	cfg     *Config
+	store   *store.Store
+	mux     *http.ServeMux
+	now     func() time.Time
+	dataDir string
 }
 
-func New(cfg *Config, st *store.Store) *Server {
-	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux(), now: time.Now}
+func New(cfg *Config, st *store.Store, dataDir string) *Server {
+	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux(), now: time.Now, dataDir: dataDir}
 	s.routes()
 	return s
 }
@@ -99,8 +104,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/qrmiss", s.authed(s.handleQRMiss))
 	s.mux.HandleFunc("/api/event/rename", s.authed(s.handleEventRename))
 	s.mux.HandleFunc("/api/event/hide", s.authed(s.handleEventHide))
+	s.mux.HandleFunc("/api/admin/scans", s.authed(s.handleAdminScans))
+	s.mux.HandleFunc("/api/admin/report", s.authed(s.handleAdminReport))
 	s.mux.HandleFunc("/jsQR.js", s.handleJSQR)
 	s.mux.HandleFunc("/zxing.js", s.handleZXing)
+	s.mux.HandleFunc("/admin", s.handleAdmin)
 	s.mux.HandleFunc("/", s.handleIndex)
 }
 
@@ -357,6 +365,96 @@ func (s *Server) handleQRMiss(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(v)
+}
+
+// Журнал сканирований для /admin: успешные QR-отметки и ненайденные коды.
+func (s *Server) handleAdminScans(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, s.store.Scans())
+}
+
+// Отчёт регистраций: CSV по событию, сохраняется в <data>/reports/ и
+// отдаётся файлом тому, кто его запросил.
+func (s *Server) handleAdminReport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "GET only")
+		return
+	}
+	ev := r.URL.Query().Get("event")
+	if ev == "" {
+		writeErr(w, http.StatusBadRequest, "event required")
+		return
+	}
+	guests := s.store.Search(ev, "")
+	if len(guests) == 0 {
+		writeErr(w, http.StatusNotFound, "event not found")
+		return
+	}
+	via := map[string]string{}
+	for _, rec := range s.store.Checkins(ev) {
+		via[rec.GuestID] = rec.Via
+	}
+	var buf bytes.Buffer
+	buf.Write([]byte("\xEF\xBB\xBF"))
+	cw := csv.NewWriter(&buf)
+	cw.Comma = ';'
+	cw.Write([]string{"Имя", "Email", "Телефон", "Тип билета", "Номер билета", "Штрихкод", "Отмечен", "Время прихода", "Способ", "Источник"})
+	for _, g := range guests {
+		marked, arrived := "—", ""
+		if g.ArrivedAt != "" {
+			marked = "да"
+			if t, err := time.Parse(time.RFC3339, g.ArrivedAt); err == nil {
+				arrived = t.Local().Format("02.01.2006 15:04")
+			}
+		}
+		method := "—"
+		switch via[g.ID] {
+		case "qr":
+			method = "QR"
+		case "tap":
+			method = "список"
+		}
+		src := ""
+		if g.Source == "walkin" {
+			src = "вручную"
+		}
+		cw.Write([]string{g.Name, g.Email, g.Phone, g.TicketType, g.TicketNumber, g.Barcode, marked, arrived, method, src})
+	}
+	cw.Flush()
+	name := reportBase(ev) + ".csv"
+	dir := filepath.Join(s.dataDir, "reports")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("X-Report-File", url.PathEscape(filepath.ToSlash(path)))
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(name))
+	w.Write(buf.Bytes())
+}
+
+// reportBase — безопасное имя файла отчёта: имя события + метка времени.
+func reportBase(ev string) string {
+	s := strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '_' || r == '.' {
+			return r
+		}
+		if r == ' ' {
+			return '-'
+		}
+		return '_'
+	}, ev)
+	if rs := []rune(s); len(rs) > 40 {
+		s = string(rs[:40])
+	}
+	if s == "" {
+		s = "event"
+	}
+	return s + "-" + time.Now().Format("20060102-150405")
 }
 
 func writeErr(w http.ResponseWriter, code int, msg string) {

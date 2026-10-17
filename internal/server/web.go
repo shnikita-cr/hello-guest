@@ -17,9 +17,17 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	b, err := webFS.ReadFile("web/app.html")
+	s.serveHTML(w, r, "web/app.html")
+}
+
+func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
+	s.serveHTML(w, r, "web/admin.html")
+}
+
+func (s *Server) serveHTML(w http.ResponseWriter, r *http.Request, name string) {
+	b, err := webFS.ReadFile(name)
 	if err != nil {
-		http.Error(w, "no client", http.StatusInternalServerError)
+		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

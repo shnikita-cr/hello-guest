@@ -391,6 +391,43 @@ func (s *Store) Checkins(event string) []Record {
 	return append([]Record(nil), s.checkins[event]...)
 }
 
+type Scan struct {
+	TS      time.Time `json:"ts"`
+	Event   string    `json:"event"`
+	Result  string    `json:"result"` // ok | miss
+	Guest   string    `json:"guest,omitempty"`
+	GuestID string    `json:"guest_id,omitempty"`
+	Code    string    `json:"code,omitempty"` // miss: распознанный код
+	Device  string    `json:"device,omitempty"`
+}
+
+// Scans возвращает журнал сканирований всех событий в обратном
+// порядке времени: успешные отметки по QR и ненайденные коды.
+func (s *Store) Scans() []Scan {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []Scan{}
+	for ev, rs := range s.checkins {
+		for _, r := range rs {
+			if r.Via != "qr" {
+				continue
+			}
+			name := ""
+			if g, ok := s.guests[ev][r.GuestID]; ok {
+				name = g.Name
+			}
+			out = append(out, Scan{TS: r.TS, Event: ev, Result: "ok", Guest: name, GuestID: r.GuestID, Device: r.Device})
+		}
+	}
+	for ev, rs := range s.qrmiss {
+		for _, r := range rs {
+			out = append(out, Scan{TS: r.TS, Event: ev, Result: "miss", Code: r.Code})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TS.After(out[j].TS) })
+	return out
+}
+
 func (s *Store) Count(event string) (total, arrived int) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

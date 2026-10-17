@@ -278,3 +278,22 @@ func TestBarcodeFromTicket(t *testing.T) {
 		t.Fatalf("search by derived barcode: %+v", got)
 	}
 }
+
+func TestScans(t *testing.T) {
+	s := tempStore(t)
+	now := time.Now()
+	s.Upsert([]Guest{{ID: "a", Event: "e1", Name: "Иван"}})
+	s.Checkin("e1", "a", "tab-1", "qr", now.Add(-2*time.Minute))
+	s.Checkin("e1", "a", "tab-1", "tap", now.Add(-time.Minute)) // повтор — в журнал не идёт
+	s.QRMiss("e1", "9999:8888")
+	sc := s.Scans()
+	if len(sc) != 2 {
+		t.Fatalf("scans: %+v", sc)
+	}
+	if sc[0].Result != "miss" || sc[0].Code != "9999:8888" {
+		t.Fatalf("newest should be miss: %+v", sc[0])
+	}
+	if sc[1].Result != "ok" || sc[1].Guest != "Иван" || sc[1].Device != "tab-1" {
+		t.Fatalf("qr checkin scan: %+v", sc[1])
+	}
+}
