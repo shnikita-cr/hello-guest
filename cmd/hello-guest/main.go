@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -12,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -49,6 +52,7 @@ func main() {
 	detach := flag.Bool("d", false, "show startup info in console, then run in background")
 	backupDir := flag.String("backup-dir", "../../copy-data", "backup directory (relative to data dir)")
 	advertiseIP := flag.String("ip", "", "advertised IP for banner and mDNS (default: auto-detect)")
+	openStatus := flag.Bool("open", false, "open the status page in the browser after start")
 	flag.Parse()
 	if *showVer {
 		fmt.Println(version)
@@ -68,6 +72,13 @@ func main() {
 			logfile = tsWriter{lf}
 			log.SetOutput(logfile)
 		}
+	}
+
+	// синглтон: экземпляр уже работает — показать его экран статуса и выйти
+	if u, ok := runningStatus(*data); ok {
+		printf("уже запущен — открываю %s\n", u)
+		openBrowser(u)
+		return
 	}
 
 	cfg, pin, err := server.LoadOrCreateConfig(*data)
@@ -93,14 +104,17 @@ func main() {
 		bk.DestDir = filepath.Join(*data, bk.DestDir)
 	}
 	bk.Start(nil, func(err error) { log.Printf("бэкап: %v", err) })
+	srv.TriggerBackup = func() (string, error) { return bk.BackupOnce(time.Now()) }
 	printf("бэкапы: каждые 5 минут → %s\n", bk.DestDir)
 	listener, port := listen(*addr)
+	os.WriteFile(filepath.Join(*data, "status.port"), []byte(fmt.Sprintf("%d", port)), 0o644)
 	var ips []string
 	if v := parseIPs(*advertiseIP); len(v) > 0 {
 		ips = v
 	} else {
 		ips = availableIPs()
 	}
+	srv.StatusIPs = ips
 	host := *name
 	// в mDNS при автоопределении уходит только основной адрес,
 	// явный список --ip публикуется целиком
@@ -111,6 +125,7 @@ func main() {
 	printf("hello-guest запущен\n")
 
 	// TLS на 8443: камера (сканер QR) работает только в secure context
+	var tlsL net.Listener
 	certFile, keyFile, err := server.EnsureCert(*data)
 	if err != nil {
 		printf("TLS недоступен: %v\n", err)
@@ -119,12 +134,20 @@ func main() {
 		for _, x := range ips {
 			printf("  https://%s:8443\n", x)
 		}
-		go func() {
-			tlsSrv := &http.Server{Addr: ":8443", Handler: srv.Handler()}
-			if err := tlsSrv.ListenAndServeTLS(certFile, keyFile); err != nil {
-				printf("TLS: %v\n", err)
-			}
-		}()
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			printf("TLS: %v\n", err)
+		} else if l, err := net.Listen("tcp", ":8443"); err != nil {
+			printf("TLS: %v\n", err)
+		} else {
+			tlsL = l
+			go func() {
+				tlsSrv := &http.Server{Handler: srv.Handler()}
+				if err := tlsSrv.Serve(tls.NewListener(l, &tls.Config{Certificates: []tls.Certificate{cert}})); err != nil && !errors.Is(err, net.ErrClosed) {
+					printf("TLS: %v\n", err)
+				}
+			}()
+		}
 	}
 
 	done := make(chan struct{})
@@ -132,6 +155,44 @@ func main() {
 		go func() { <-done; sd.Shutdown() }()
 	} else {
 		printf("mDNS недоступен: %v\n", err)
+	}
+
+	// стоп и перезапуск — кнопками экрана статуса (только localhost)
+	srv.OnStop = func() {
+		printf("останавливаюсь по запросу с экрана статуса\n")
+		time.Sleep(250 * time.Millisecond) // ответ уходит клиенту
+		listener.Close()
+		if tlsL != nil {
+			tlsL.Close()
+		}
+		st.Close()
+		os.Exit(0)
+	}
+	srv.OnRestart = func() {
+		printf("перезапускаю по запросу с экрана статуса\n")
+		listener.Close()
+		if tlsL != nil {
+			tlsL.Close()
+		}
+		cmd := exec.Command(os.Args[0], stripFlags(os.Args[1:], "-d", "--d", "-open", "--open")...)
+		f, _ := os.OpenFile(filepath.Join(*data, "hello-guest.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		cmd.Stdout = nil
+		if f != nil {
+			cmd.Stderr = f
+		}
+		cmd.Env = append(os.Environ(), "HG_DAEMON=1")
+		daemonize(cmd)
+		if err := cmd.Start(); err != nil {
+			log.Printf("рестарт: %v", err)
+		}
+		if f != nil {
+			f.Close()
+		}
+		st.Close()
+		os.Exit(0)
+	}
+	if *openStatus {
+		openBrowser(fmt.Sprintf("http://127.0.0.1:%d/status", port))
 	}
 
 	go func() {
@@ -143,9 +204,12 @@ func main() {
 		os.Exit(0)
 	}()
 
-	if err := http.Serve(listener, srv.Handler()); err != nil && err != http.ErrServerClosed {
+	if err := http.Serve(listener, srv.Handler()); err != nil && !errors.Is(err, net.ErrClosed) {
 		log.Fatal(err)
 	}
+	// слушатель закрыли стоп/рестарт/сигнал — завершает сам обработчик,
+	// здесь только дожить (иначе процесс умрёт до ответа клиенту)
+	select {}
 }
 
 // runBackground запускает копию процесса в фоне (без -d), показывает
@@ -234,14 +298,7 @@ func drainLog(path string, off *int64, seen *[]byte) {
 }
 
 func stripD(args []string) []string {
-	out := make([]string, 0, len(args))
-	for _, a := range args {
-		if a == "-d" || a == "--d" || strings.HasPrefix(a, "-d=") || strings.HasPrefix(a, "--d=") {
-			continue
-		}
-		out = append(out, a)
-	}
-	return out
+	return stripFlags(args, "-d", "--d")
 }
 
 func listen(want string) (net.Listener, int) {
@@ -262,6 +319,57 @@ func listen(want string) (net.Listener, int) {
 		log.Fatal(err)
 	}
 	return l, 8080
+}
+
+// runningStatus: порт занят — не я ли сам? Файл status.port и живой
+// /api/version на нём означают «второй экземпляр уже работает».
+func runningStatus(data string) (string, bool) {
+	b, err := os.ReadFile(filepath.Join(data, "status.port"))
+	if err != nil {
+		return "", false
+	}
+	port := strings.TrimSpace(string(b))
+	if port == "" {
+		return "", false
+	}
+	url := "http://127.0.0.1:" + port
+	hc := http.Client{Timeout: 1500 * time.Millisecond}
+	resp, err := hc.Get(url + "/api/version")
+	if err != nil || resp.StatusCode != 200 {
+		return "", false
+	}
+	resp.Body.Close()
+	return url + "/status", true
+}
+
+func openBrowser(url string) {
+	var c *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		c = exec.Command("open", url)
+	case "windows":
+		c = exec.Command("cmd", "/c", "start", "", url)
+	default:
+		c = exec.Command("xdg-open", url)
+	}
+	c.Start()
+}
+
+func stripFlags(args []string, drop ...string) []string {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		keep := true
+		for _, d := range drop {
+			if a == d || strings.HasPrefix(a, d+"=") {
+				keep = false
+				break
+			}
+		}
+		if keep {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // parseIPs: несколько адресов для --ip через запятую: --ip 192.168.1.10,10.0.0.5

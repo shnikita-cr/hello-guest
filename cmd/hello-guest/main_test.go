@@ -1,9 +1,59 @@
 package main
 
 import (
+	"fmt"
 	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestStripFlags(t *testing.T) {
+	got := stripFlags([]string{"-d", "--open", "--addr", ":8080", "-open=1"}, "-d", "--d", "-open", "--open")
+	want := "--addr :8080"
+	if s := strings.Join(got, " "); s != want {
+		t.Fatalf("stripFlags = %q, ждали %q", s, want)
+	}
+}
+
+func TestRunningStatus(t *testing.T) {
+	dir := t.TempDir()
+	if _, ok := runningStatus(dir); ok {
+		t.Fatal("без файла status.port не должно считаться работающим")
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"version":"test"}`))
+	})
+	go http.Serve(ln, mux)
+	port := ln.Addr().(*net.TCPAddr).Port
+	os.WriteFile(filepath.Join(dir, "status.port"), []byte(fmt.Sprintf("%d", port)), 0o644)
+	u, ok := runningStatus(dir)
+	if !ok || !strings.HasSuffix(u, "/status") {
+		t.Fatalf("живой сервер: ok=%v url=%q", ok, u)
+	}
+
+	ln.Close()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if _, ok := runningStatus(dir); !ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("после остановки сервера файл status.port не должен давать 살아")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
 
 func TestParseIPs(t *testing.T) {
 	got := parseIPs(" 192.168.1.10 ,10.0.0.5,, ")
