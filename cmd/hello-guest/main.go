@@ -18,6 +18,7 @@ import (
 
 	"github.com/grandcat/zeroconf"
 
+	"hello-guest/internal/backup"
 	"hello-guest/internal/server"
 	"hello-guest/internal/store"
 )
@@ -31,6 +32,7 @@ func main() {
 	name := flag.String("name", "hello-guest", "mDNS hostname (<name>.local)")
 	showVer := flag.Bool("version", false, "print version and exit")
 	detach := flag.Bool("d", false, "show startup info in console, then run in background")
+	backupDir := flag.String("backup-dir", "../../copy-data", "backup directory (relative to data dir)")
 	flag.Parse()
 	if *showVer {
 		fmt.Println(version)
@@ -61,6 +63,14 @@ func main() {
 
 	server.Version = version
 	srv := server.New(cfg, st, *data)
+
+	// бэкапы каталога данных: каждые 5 минут zip, хранятся последние 20
+	bk := backup.Runner{DataDir: *data, DestDir: *backupDir, Keep: 20, Every: 5 * time.Minute}
+	if !filepath.IsAbs(bk.DestDir) {
+		bk.DestDir = filepath.Join(*data, bk.DestDir)
+	}
+	bk.Start(nil, func(err error) { log.Printf("бэкап: %v", err) })
+	fmt.Printf("бэкапы: каждые 5 минут → %s\n", bk.DestDir)
 	listener, port := listen(*addr)
 	ip := hostIP()
 	actual := fmt.Sprintf("%s:%d", ip, port)
