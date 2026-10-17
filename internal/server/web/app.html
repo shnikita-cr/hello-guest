@@ -238,7 +238,15 @@ function saveQueue(){localStorage.setItem('hg_queue',JSON.stringify(queue));}
 function qpush(item){queue.push(item);saveQueue();}
 
 function loadCache(){try{guests=JSON.parse(localStorage.getItem('hg_cache_'+event)||'[]');}catch(e){guests=[];}}
-function saveCache(){try{localStorage.setItem('hg_cache_'+event,JSON.stringify(guests));}catch(e){}}
+function saveCache(){
+  try{
+    localStorage.setItem('hg_cache_'+event,JSON.stringify(guests));
+    const l=cachedEvents().filter(x=>x!==event);l.unshift(event);
+    localStorage.setItem('hg_cached',JSON.stringify(l.slice(0,8)));
+  }catch(e){}
+}
+function cachedEvents(){try{return JSON.parse(localStorage.getItem('hg_cached')||'[]');}catch(e){return[];}}
+function cacheOf(ev){try{return JSON.parse(localStorage.getItem('hg_cache_'+ev)||'[]');}catch(e){return[];}}
 
 let showHidden=false;
 
@@ -252,12 +260,19 @@ async function pickEvent(){
   try{evs=await api('/api/events');setLive(true);}
   catch(e){
     setLive(false);
-    if(event){
+    let evs=cachedEvents();
+    if(!evs.length&&event&&localStorage.getItem('hg_cache_'+event))evs=[event];
+    if(!evs.length)return;
+    const t=document.createElement('p');
+    t.style.color='var(--mut)';t.textContent='Нет связи — из кэша:';
+    el.appendChild(t);
+    evs.forEach(ev=>{
+      const gs=cacheOf(ev);
       const d=document.createElement('div');d.className='row';
-      d.innerHTML=`<div class="nm">${esc(event)}<div class="sub">последнее событие (из кэша)</div></div>`;
-      d.onclick=()=>enterEvent(event);
+      d.innerHTML=`<div class="nm">${esc(ev)}<div class="sub">${gs.filter(g=>g.arrived_at).length}/${gs.length} пришло · из кэша</div></div>`;
+      d.onclick=()=>{event=ev;localStorage.setItem('hg_event',ev);enterEvent(ev);};
       el.appendChild(d);
-    }
+    });
     return;
   }
   if(!evs.length){el.innerHTML='<p style="color:var(--mut)">Нет мероприятий. Импортируйте выгрузку.</p>';return;}
