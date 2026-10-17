@@ -10,7 +10,6 @@ globalThis.localStorage = {
   removeItem: k => mem.delete(k),
 };
 globalThis.location = { href: 'https://shnikita-cr.github.io/hello-guest/' };
-globalThis.navigator = { onLine: true };
 globalThis.addEventListener = globalThis.addEventListener || (() => {});
 
 eval(readFileSync(new URL('./mock.js', import.meta.url), 'utf8'));
