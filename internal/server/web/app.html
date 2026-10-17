@@ -196,7 +196,13 @@ async function api(path,opt={}){
 async function submitPin(){
   pin=document.getElementById('pinInput').value.trim();
   try{await api('/api/pin');localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();}
-  catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
+  catch(e){
+    // офлайн: сервер недоступен (не «неверный PIN») — сверяем с сохранённым
+    if(e.message!=='pin'&&localStorage.getItem('hg_pin')===pin){
+      document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();return;
+    }
+    document.getElementById('pinErr').textContent='Неверный PIN';
+  }
 }
 
 function renderTabs(){
