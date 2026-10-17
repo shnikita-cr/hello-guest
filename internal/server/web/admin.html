@@ -118,9 +118,10 @@ async function loadScans(){
   if(!sc.length){el.innerHTML='<div class="mut">Сканирований пока не было</div>';return;}
   let html='';
   for(const s of sc){
+    const code=s.code.length>48?s.code.slice(0,48)+'…':s.code;
     const who=s.result==='ok'
       ?`<span class="ok">✓ ${esc(s.guest)}</span>${s.device?' · '+esc(s.device):''}`
-      :`<span class="miss">✗ не найден: ${esc(s.code)}</span>`;
+      :`<span class="miss">✗ не найден: ${esc(code)}</span>`;
     html+=`<div class="row"><span class="ts">${fmtTS(s.ts)}</span><span class="ev">${esc(s.event)}</span><span class="txt">${who}</span></div>`;
   }
   el.innerHTML=html;
