@@ -1,12 +1,14 @@
 package server
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -280,7 +282,20 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body := http.MaxBytesReader(w, r.Body, 20<<20)
-	guests, err := importFrom(body, ev)
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// сырой файл выгрузки Timepad сохраняем в <data>/imports/
+	if dir := filepath.Join(s.dataDir, "imports"); os.MkdirAll(dir, 0o755) == nil {
+		ext := ".csv"
+		if len(raw) >= 4 && raw[0] == 'P' && raw[1] == 'K' {
+			ext = ".xlsx"
+		}
+		os.WriteFile(filepath.Join(dir, time.Now().Format("20060102-150405")+ext), raw, 0o644)
+	}
+	guests, err := importFrom(bytes.NewReader(raw), ev)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
