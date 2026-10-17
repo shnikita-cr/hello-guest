@@ -107,6 +107,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/admin/journal", s.authed(s.handleAdminJournal))
 	s.mux.HandleFunc("/api/admin/report", s.authed(s.handleAdminReport))
 	s.mux.HandleFunc("/jsQR.js", s.handleJSQR)
+	s.mux.HandleFunc("/sw.js", s.handleSW)
 	s.mux.HandleFunc("/zxing.js", s.handleZXing)
 	s.mux.HandleFunc("/admin", s.handleAdmin)
 	s.mux.HandleFunc("/", s.handleIndex)

@@ -689,6 +689,9 @@ async function openStats(){
 window.addEventListener('online',()=>{flushQueue();refresh();});
 document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
+// service worker: при потере сети страница переживает свайп-обновление и F5
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
 boot();
 </script>
 </body>
