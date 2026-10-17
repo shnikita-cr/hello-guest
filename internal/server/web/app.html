@@ -193,6 +193,7 @@ async function api(path,opt={}){
 }
 
 async function submitPin(){
+  try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}catch(e){}
   pin=document.getElementById('pinInput').value.trim();
   try{await api('/api/pin');localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();}
   catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
@@ -205,9 +206,9 @@ function renderTabs(){
   document.getElementById('tabSrc').classList.toggle('hide',!authed);
   updateTabAdd();
 }
-// «+ Гость» — только когда открыто конкретное мероприятие
+// «+ Гость» — только когда открыт список гостей мероприятия
 function updateTabAdd(){
-  const on=!!localStorage.getItem('hg_pin')&&!!event&&screen!=='eventPane'&&screen!=='pin';
+  const on=!!localStorage.getItem('hg_pin')&&!!event&&screen==='app';
   document.getElementById('tabAdd').classList.toggle('hide',!on);
 }
 
@@ -355,12 +356,12 @@ function updateQueueN(){['queueN','queueN2','queueN3','queueN4','queueN5','queue
 
 async function refresh(){
   try{
+    await flushQueue(); // сначала отправляем отложенные действия, потом тянем состояние
     const st=await api('/api/state?event='+encodeURIComponent(event));
     guests=st.guests||[];
     saveCache();
     setLive(true);
     clearInterval(timer);timer=setInterval(refresh,2500);
-    await flushQueue();
     render();
   }catch(e){
     setLive(false);
@@ -418,7 +419,7 @@ async function flushQueue(){
   const q2=queue.slice();queue=[];
   for(const item of q2){
     try{
-      if(item.t==='checkin')await api('/api/checkin',{method:'POST',body:{event:item.event,guest_id:item.guest_id,device:item.device,via:item.via}});
+      if(item.t==='checkin')await api('/api/checkin',{method:'POST',body:{event:item.event,guest_id:item.guest_id,device:item.device,via:item.via||'tap'}});
       if(item.t==='undo')await api('/api/undo',{method:'POST',body:{event:item.event,guest_id:item.guest_id}});
       if(item.t==='add')await api('/api/guest',{method:'POST',body:item.payload});
       if(item.t==='qrmiss')await api('/api/qrmiss',{method:'POST',body:{event:item.event,code:item.code}});
@@ -432,20 +433,42 @@ function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
 let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
 
-function buzz(p){try{const v=navigator.vibrate||navigator.mozVibrate;v&&v.call(navigator,p);}catch(e){}}
+let ac;
+function buzz(p){
+  try{
+    const v=navigator.vibrate||navigator.mozVibrate;
+    if(v&&v.call(navigator,p))return; // вибрация есть и сработала — звук не нужен
+  }catch(e){}
+  // нет вибрации (iOS) или она не сработала — звуковой щелчок
+  try{
+    if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==='suspended')ac.resume();
+    const d=Math.min(p,600)/1000; // 600 = длинный низкий тон ошибки, 80 = короткий успех
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.frequency.value=p>=600?220:880;
+    g.gain.setValueAtTime(0.25,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
+    o.connect(g);g.connect(ac.destination);
+    o.start();o.stop(ac.currentTime+d);
+  }catch(e){}
+}
 
 // полноэкранный результат скана: зелёный ✓ успех, жёлтый ✓ уже отмечен, красный ✗ провал
-function flashQR(bg,icon,text,sub,ms){
+function flashQR(bg,icon,text,sub,ms,tc){
   const f=document.getElementById('qrFlash');
   f.style.background=bg;
-  document.getElementById('qrFlashIcon').textContent=icon;
-  document.getElementById('qrFlashText').textContent=text;
-  document.getElementById('qrFlashSub').textContent=sub||'';
+  const ic=document.getElementById('qrFlashIcon');
+  ic.textContent=icon;ic.style.color=tc||'#fff';
+  const t=document.getElementById('qrFlashText');
+  t.textContent=text;t.style.color=tc||'#fff';
+  const s=document.getElementById('qrFlashSub');
+  s.textContent=sub||'';s.style.color=tc||'#fff';
   f.classList.remove('hide');
   clearTimeout(qrFlashT);qrFlashT=setTimeout(()=>f.classList.add('hide'),ms);
 }
 
 async function startScan(){
+  try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}catch(e){}
   const msg=document.getElementById('qrMsg');
   msg.textContent='';msg.style.color='var(--mut)';
   show('qrPane');
@@ -552,7 +575,7 @@ async function onQR(text){
   }
   const g=guests.find(x=>(x.ticket_number||'')===code||(x.barcode||'')===code);
   if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,900);qpush({t:'qrmiss',event,code});return;}
-  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,600);return;}
+  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#d4ff00','✓','УЖЕ ОТМЕЧЕН',g.name,600,'#111');qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});return;}
   g.arrived_at=new Date().toISOString();
   qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});
   msg.style.color='var(--ok)';msg.textContent='Отмечен: '+g.name;
@@ -652,6 +675,10 @@ async function openStats(){
 window.addEventListener('online',()=>{flushQueue();refresh();});
 document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
+// разблокировка звука первым касанием (требование Android/iOS)
+document.addEventListener('pointerdown',()=>{
+  try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}catch(e){}
+},{once:true});
 boot();
 </script>
 </body>
