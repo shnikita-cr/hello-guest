@@ -41,8 +41,15 @@ go run ./cmd/hello-guest --addr :8080
 ./dist/hello-guest --data ./data  # каталог данных (по умолчанию ./data)
 ./dist/hello-guest --name hello   # mDNS-имя: http://hello.local
 ./dist/hello-guest -d             # показать PIN и адреса, уйти в фон (лог: data/hello-guest.log)
+./dist/hello-guest --backup-dir ../../copy-data  # папка бэкапов (по умолчанию, от каталога данных)
 ./dist/hello-guest --version
 ```
+
+### Резервные копии
+
+Демон сам каждые 5 минут кладёт zip-архив каталога данных в `--backup-dir`
+(по умолчанию `../../copy-data` относительно каталога данных). Если данные не
+менялись — копия пропускается. Хранятся последние 20 архивов, старые удаляются.
 
 При старте в консоль печатается PIN и адреса:
 
