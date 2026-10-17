@@ -46,6 +46,7 @@ go run ./cmd/hello-guest --addr :8080
 ./dist/hello-guest --name hello   # mDNS-имя: http://hello.local
 ./dist/hello-guest -d             # показать PIN и адреса, уйти в фон (лог: data/hello-guest.log)
 ./dist/hello-guest --backup-dir ../../copy-data  # папка бэкапов (по умолчанию, от каталога данных)
+./dist/hello-guest --ip 192.168.1.10,10.0.0.5  # явные IP для баннера и mDNS, через запятую (автоопределение обычно хватает)
 ./dist/hello-guest --version
 ```
 
