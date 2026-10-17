@@ -407,11 +407,13 @@ func (s *Server) handleAdminReport(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		method := "—"
-		switch via[g.ID] {
-		case "qr":
-			method = "QR"
-		case "tap":
-			method = "список"
+		if g.ArrivedAt != "" {
+			switch via[g.ID] {
+			case "qr":
+				method = "QR"
+			case "tap":
+				method = "список"
+			}
 		}
 		src := ""
 		if g.Source == "walkin" {
