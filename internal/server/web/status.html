@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Hello Guest — статус</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💓</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
 <style>
 :root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--err:#e74c3c;--acc:#3b82f6}
 *{box-sizing:border-box}
@@ -96,7 +96,7 @@ function down() {
 async function poll() {
   if (!navigator.onLine) return down();
   try {
-    const s = await (await fetch('/api/status')).json();
+    const s = await (await fetch('/api/status', {cache: 'no-store'})).json();
     $('state').classList.remove('down');
     $('stateText').textContent = 'работает';
     heart(true);
@@ -129,7 +129,40 @@ async function life(path, btn, text) {
   const msg = $('lifeMsg');
   msg.className = 'msg';
   msg.textContent = text;
-  try { await fetch(path, {method: 'POST'}); } catch {}
+  let r;
+  try {
+    r = await fetch(path, {method: 'POST'});
+  } catch {
+    msg.className = 'msg err'; msg.textContent = 'нет связи';
+    btn.disabled = false;
+    return;
+  }
+  if (!r.ok) {
+    let e = {};
+    try { e = await r.json(); } catch {}
+    msg.className = 'msg err';
+    msg.textContent = e.error || ('ошибка ' + r.status);
+    btn.disabled = false;
+    return;
+  }
+  if (path.endsWith('/restart')) {
+    for (let i = 0; i < 40; i++) {
+      await new Promise(res => setTimeout(res, 500));
+      try {
+        await fetch('/api/status', {cache: 'no-store'});
+        msg.className = 'msg ok';
+        msg.textContent = 'перезапущен';
+        btn.disabled = false;
+        return;
+      } catch {}
+    }
+    msg.className = 'msg err';
+    msg.textContent = 'не отвечает — загляните в лог';
+    btn.disabled = false;
+    return;
+  }
+  msg.className = 'msg';
+  msg.textContent = 'остановлен — запустите снова, когда понадобится';
 }
 $('restartBtn').addEventListener('click', () => life('/api/admin/restart', $('restartBtn'), 'перезапускаю…'));
 $('stopBtn').addEventListener('click', () => life('/api/admin/stop', $('stopBtn'), 'останавливаю…'));
