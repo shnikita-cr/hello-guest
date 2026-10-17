@@ -94,6 +94,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 </div>
 
 <div id="addPane" class="pane hide">
+  <div id="offlineBar3" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN3">0</span> в очереди</div>
   <h2>Новый гость</h2>
   <div class="field"><label>Имя *</label><input id="aName"></div>
   <div class="field"><label>Телефон</label><input id="aPhone" type="tel"></div>
@@ -106,6 +107,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 </div>
 
 <div id="statsPane" class="pane hide">
+  <div id="offlineBar4" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN4">0</span> в очереди</div>
   <h2>Статистика</h2>
   <div class="stats">
     <div class="stat"><div class="v" id="sArrived">0</div><div class="l">пришло</div></div>
@@ -125,6 +127,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 </div>
 
 <div id="srcPane" class="pane hide">
+  <div id="offlineBar5" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN5">0</span> в очереди</div>
   <h2>Источники</h2>
   <p style="color:var(--mut);font-size:14px">Импорт выгрузки Timepad (CSV или XLSX) или подтягивание через API в текущее мероприятие.</p>
   <div class="field">
@@ -316,14 +319,13 @@ function setLive(ok){
     d.style.color=ok?'var(--ok)':'var(--err)';
     d.classList.toggle('bad',!ok);
   });
-  ['offlineBar','offlineBar2'].forEach(id=>{
+  ['offlineBar','offlineBar2','offlineBar3','offlineBar4','offlineBar5'].forEach(id=>{
     const b=document.getElementById(id);if(!b)return;
     b.classList.toggle('hide',ok);
   });
-  ['queueN','queueN2'].forEach(id=>{
-    const n=document.getElementById(id);if(n)n.textContent=queue.length;
-  });
+  updateQueueN();
 }
+function updateQueueN(){['queueN','queueN2','queueN3','queueN4','queueN5'].forEach(id=>{const n=document.getElementById(id);if(n)n.textContent=queue.length;});}
 
 async function refresh(){
   try{
@@ -331,10 +333,12 @@ async function refresh(){
     guests=st.guests||[];
     saveCache();
     setLive(true);
+    clearInterval(timer);timer=setInterval(refresh,2500);
     await flushQueue();
     render();
   }catch(e){
     setLive(false);
+    clearInterval(timer);timer=setInterval(refresh,800);
     render();
   }
 }
@@ -392,7 +396,7 @@ async function flushQueue(){
     }catch(e){queue.push(item);}
   }
   saveQueue();
-  document.getElementById('queueN').textContent=queue.length;
+  updateQueueN();
 }
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
