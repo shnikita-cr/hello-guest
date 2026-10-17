@@ -426,7 +426,7 @@ async function flushQueue(){
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
-let qrStream=null,qrRaf=null,qrCanvas=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxReader=null;
+let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxReader=null;
 
 function buzz(p){try{const v=navigator.vibrate||navigator.mozVibrate;v&&v.call(navigator,p);}catch(e){}}
 
@@ -473,17 +473,24 @@ async function startScan(){
       const img=ctx.getImageData(0,0,qrCanvas.width,qrCanvas.height);
       const q=jsQR(img.data,qrCanvas.width,qrCanvas.height);
       let text=q&&q.data;
-      if(!text&&window.ZXing&&qrFrame%6===0){
-        try{
-          if(!zxReader){
-            zxReader=new ZXing.MultiFormatReader();
-            const hints=new Map();
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.CODE_39,ZXing.BarcodeFormat.ITF]);
-            zxReader.setHints(hints);
-          }
-          const bmp=new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(qrCanvas)));
-          text=zxReader.decode(bmp).getText();
-        }catch(e){try{zxReader.reset();}catch(e2){}}
+      if(!text&&window.ZXing){
+        if(!zxReader){
+          zxReader=new ZXing.MultiFormatReader();
+          const hints=new Map();
+          hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.CODE_39,ZXing.BarcodeFormat.ITF]);
+          hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+          zxReader.setHints(hints);
+        }
+        if(qrFrame%4===0){
+          text=zxDecode(qrCanvas,ZXing.HybridBinarizer);
+          if(!text)text=zxDecode(zxRot(qrCanvas,90),ZXing.HybridBinarizer);
+          if(!text)text=zxDecode(zxRot(qrCanvas,270),ZXing.HybridBinarizer);
+        }
+        if(!text&&qrFrame%8===0){
+          text=zxDecode(qrCanvas,ZXing.GlobalHistogramBinarizer);
+          if(!text)text=zxDecode(zxRot(qrCanvas,90),ZXing.GlobalHistogramBinarizer);
+          if(!text)text=zxDecode(zxRot(qrCanvas,270),ZXing.GlobalHistogramBinarizer);
+        }
       }
       qrFrame++;
       if(text)onQR(text);
@@ -491,6 +498,24 @@ async function startScan(){
     qrRaf=requestAnimationFrame(scan);
   };
   qrRaf=requestAnimationFrame(scan);
+}
+
+// штрихкод под любым углом: кадр поворачивается на 90°/270° перед разбором
+function zxRot(src,deg){
+  if(!qrRot)qrRot=document.createElement('canvas');
+  qrRot.width=deg%180?src.height:src.width;
+  qrRot.height=deg%180?src.width:src.height;
+  const c=qrRot.getContext('2d');
+  c.translate(qrRot.width/2,qrRot.height/2);
+  c.rotate(deg*Math.PI/180);
+  c.drawImage(src,-src.width/2,-src.height/2);
+  return qrRot;
+}
+function zxDecode(canvas,Bin){
+  try{
+    const bmp=new ZXing.BinaryBitmap(new Bin(new ZXing.HTMLCanvasElementLuminanceSource(canvas)));
+    return zxReader.decode(bmp).getText();
+  }catch(e){try{zxReader.reset();}catch(e2){}return '';}
 }
 
 function stopScan(){
