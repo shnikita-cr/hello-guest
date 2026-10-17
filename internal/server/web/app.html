@@ -476,6 +476,7 @@ function flashQR(bg,icon,text,sub,ms,tc){
 
 async function startScan(){
   try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}catch(e){}
+  setTimeout(()=>buzz(80),400); // тестовый писк: во время него жмите «громкость+» на устройстве
   const msg=document.getElementById('qrMsg');
   msg.textContent='';msg.style.color='var(--mut)';
   show('qrPane');
