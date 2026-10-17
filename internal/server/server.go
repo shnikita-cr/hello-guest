@@ -102,7 +102,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/qrmiss", s.authed(s.handleQRMiss))
 	s.mux.HandleFunc("/api/event/rename", s.authed(s.handleEventRename))
 	s.mux.HandleFunc("/api/event/hide", s.authed(s.handleEventHide))
-	s.mux.HandleFunc("/api/admin/scans", s.authed(s.handleAdminScans))
+	s.mux.HandleFunc("/api/admin/journal", s.authed(s.handleAdminJournal))
 	s.mux.HandleFunc("/api/admin/report", s.authed(s.handleAdminReport))
 	s.mux.HandleFunc("/jsQR.js", s.handleJSQR)
 	s.mux.HandleFunc("/zxing.js", s.handleZXing)
@@ -365,9 +365,10 @@ func writeJSON(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// Журнал сканирований для /admin: успешные QR-отметки и ненайденные коды.
-func (s *Server) handleAdminScans(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, s.store.Scans())
+// Журнал действий для /admin: отметки, повторные сканы, снятия,
+// добавления вручную и ненайденные коды.
+func (s *Server) handleAdminJournal(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, s.store.Journal())
 }
 
 // Отчёт регистраций: CSV по событию, сохраняется в <data>/reports/ и

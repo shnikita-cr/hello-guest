@@ -279,21 +279,69 @@ func TestBarcodeFromTicket(t *testing.T) {
 	}
 }
 
-func TestScans(t *testing.T) {
-	s := tempStore(t)
+func TestJournal(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "j.ndjson")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Now()
 	s.Upsert([]Guest{{ID: "a", Event: "e1", Name: "Иван"}})
-	s.Checkin("e1", "a", "tab-1", "qr", now.Add(-2*time.Minute))
-	s.Checkin("e1", "a", "tab-1", "tap", now.Add(-time.Minute)) // повтор — в журнал не идёт
+	s.Checkin("e1", "a", "tab-1", "tap", now.Add(-5*time.Minute))
+	s.Checkin("e1", "a", "tab-1", "qr", now.Add(-4*time.Minute)) // уже отмечен — повтор
+	s.UndoCheckin("e1", "a")
+	s.Checkin("e1", "a", "tab-2", "qr", now.Add(-2*time.Minute))
 	s.QRMiss("e1", "9999:8888")
-	sc := s.Scans()
-	if len(sc) != 2 {
-		t.Fatalf("scans: %+v", sc)
+	s.Upsert([]Guest{{ID: "w1", Event: "e1", Name: "Ольга", Source: "walkin"}})
+
+	j := s.Journal()
+	counts := map[string]int{}
+	for _, a := range j {
+		counts[a.Kind]++
 	}
-	if sc[0].Result != "miss" || sc[0].Code != "9999:8888" {
-		t.Fatalf("newest should be miss: %+v", sc[0])
+	want := map[string]int{"checkin": 2, "again": 1, "undo": 1, "miss": 1, "add": 1}
+	if len(j) != 6 || !mapsEqual(counts, want) {
+		t.Fatalf("journal counts %v, want %v: %+v", counts, want, j)
 	}
-	if sc[1].Result != "ok" || sc[1].Guest != "Иван" || sc[1].Device != "tab-1" {
-		t.Fatalf("qr checkin scan: %+v", sc[1])
+	for _, a := range j {
+		if a.Kind == "again" && a.Guest != "Иван" {
+			t.Fatalf("again entry: %+v", a)
+		}
+		if a.Kind == "miss" && a.Code != "9999:8888" {
+			t.Fatalf("miss entry: %+v", a)
+		}
+		if a.Kind == "add" && a.Guest != "Ольга" {
+			t.Fatalf("add entry: %+v", a)
+		}
+		if a.Kind == "checkin" && a.Via == "" {
+			t.Fatalf("checkin entry without via: %+v", a)
+		}
 	}
+	s.Close()
+
+	// после перезапуска журнал и отметки восстанавливаются из файла
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	if got := len(s2.Journal()); got != 6 {
+		t.Fatalf("journal after restart: %d", got)
+	}
+	gs := s2.Search("e1", "Иван")
+	if len(gs) != 1 || gs[0].ArrivedAt == "" {
+		t.Fatalf("checkin after undo must survive restart: %+v", gs)
+	}
+}
+
+func mapsEqual(a, b map[string]int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
