@@ -168,6 +168,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
     <div id="offlineBar6" class="offline hide" style="margin:8px 0 12px">нет связи, <span id="queueN6">0</span> в очереди</div>
     <video id="qrVideo" autoplay playsinline muted style="width:100%;max-height:50vh;object-fit:cover;border-radius:12px;background:#111"></video>
     <div id="qrMsg" style="font-size:18px;font-weight:700;min-height:28px;margin:12px 0"></div>
+    <div style="font-size:14px;color:var(--mut)">Не читается с экрана — отодвиньте телефон гостя или попросите наклонить</div>
     <p style="color:var(--mut);font-size:14px">Наведите камеру на QR-код или штрих-код билета Timepad. После отметки камера продолжит сканирование — можно приглашать следующего гостя.</p>
     <button style="width:100%" onclick="stopScan()">Закрыть</button>
   </div>
@@ -430,11 +431,11 @@ async function flushQueue(){
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
-let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
+let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrBlur=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
 
 const beeps={};
-function beepWav(freq,dur){
-  const key=freq+':'+dur;
+function beepWav(freq,dur,vol){
+  const key=freq+':'+dur+':'+(vol||9);
   if(beeps[key])return beeps[key];
   const sr=8000,n=Math.round(sr*dur),buf=new ArrayBuffer(44+n*2),dv=new DataView(buf);
   const s=(o,t)=>{for(let i=0;i<t.length;i++)dv.setUint8(o+i,t.charCodeAt(i));};
@@ -442,14 +443,15 @@ function beepWav(freq,dur){
   dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,sr,true);
   dv.setUint32(28,sr*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);
   s(36,'data');dv.setUint32(40,n*2,true);
+  const a=(vol||9)/10;
   for(let i=0;i<n;i++){
     const env=1-i/n; // затухание, чтобы не щёлкало
-    dv.setInt16(44+i*2,Math.round(Math.sin(2*Math.PI*freq*i/sr)*0.9*32767*env),true);
+    dv.setInt16(44+i*2,Math.round(Math.sin(2*Math.PI*freq*i/sr)*a*32767*env),true);
   }
   return beeps[key]=URL.createObjectURL(new Blob([buf],{type:'audio/wav'}));
 }
-function beep(freq,dur){
-  try{const a=new Audio(beepWav(freq,dur));a.volume=1;a.play().catch(()=>{});}catch(e){}
+function beep(freq,dur,vol){
+  try{const a=new Audio(beepWav(freq,dur,vol));a.volume=1;a.play().catch(()=>{});}catch(e){}
 }
 function buzz(p){
   try{
@@ -458,7 +460,7 @@ function buzz(p){
   }catch(e){}
   // звук через <audio>: WebAudio осцилляторы Firefox Android глушит во время камеры
   try{
-    if(p>=600)beep(220,0.5); // ошибка — длинный низкий
+    if(p>=600){beep(220,0.6,10);setTimeout(()=>beep(220,0.6,10),250);} // ошибка — громкий двойной низкий
     else if(p>=150){beep(988,0.1);setTimeout(()=>beep(740,0.12),160);} // повтор — двойной бип
     else beep(880,0.08); // успех — короткий высокий
   }catch(e){}
@@ -522,6 +524,13 @@ async function startScan(){
             text=zxDecode(qrCanvas,zxHard,ZXing.HybridBinarizer);
             if(!text)text=zxDecode(zxRot(qrCanvas,90),zxHard,ZXing.HybridBinarizer);
             if(!text)text=zxDecode(zxRot(qrCanvas,270),zxHard,ZXing.HybridBinarizer);
+            // рябь от экрана гостя: пробуем размытую копию кадра
+            if(!text){
+              const b=zxBlur(qrCanvas);
+              const bq=jsQR(b.getContext('2d').getImageData(0,0,b.width,b.height),b.width,b.height);
+              if(bq&&bq.data)text=bq.data;
+            }
+            if(!text)text=zxDecode(zxBlur(qrCanvas),zxHard,ZXing.HybridBinarizer);
           }
           if(!text&&qrFrame%8===0){
             text=zxDecode(qrCanvas,zxHard,ZXing.GlobalHistogramBinarizer);
@@ -548,6 +557,15 @@ function zxMake(formats,hard){
 }
 
 // штрихкод под любым углом: кадр поворачивается на 90°/270° перед разбором
+// копия кадра с лёгким размытием: гасит moiré (рябь) от экрана телефона гостя
+function zxBlur(src){
+  if(!qrBlur)qrBlur=document.createElement('canvas');
+  qrBlur.width=src.width;qrBlur.height=src.height;
+  const c=qrBlur.getContext('2d');
+  c.filter='blur(1px)';
+  c.drawImage(src,0,0);
+  return qrBlur;
+}
 function zxRot(src,deg){
   if(!qrRot)qrRot=document.createElement('canvas');
   qrRot.width=deg%180?src.height:src.width;
