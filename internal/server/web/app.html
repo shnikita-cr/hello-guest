@@ -206,10 +206,11 @@ function renderTabs(){
   document.getElementById('tabSrc').classList.toggle('hide',!authed);
   updateTabAdd();
 }
-// «+ Гость» — только когда открыт список гостей мероприятия
+// «+ Гость» и «Статистика» — только внутри выбранного мероприятия
 function updateTabAdd(){
   const on=!!localStorage.getItem('hg_pin')&&!!event&&screen==='app';
   document.getElementById('tabAdd').classList.toggle('hide',!on);
+  document.getElementById('tabStats').classList.toggle('hide',!on);
 }
 
 function showPin(){
@@ -431,7 +432,7 @@ async function flushQueue(){
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
-let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrBlur=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
+let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
 
 const beeps={};
 function beepWav(freq,dur,vol){
@@ -524,13 +525,6 @@ async function startScan(){
             text=zxDecode(qrCanvas,zxHard,ZXing.HybridBinarizer);
             if(!text)text=zxDecode(zxRot(qrCanvas,90),zxHard,ZXing.HybridBinarizer);
             if(!text)text=zxDecode(zxRot(qrCanvas,270),zxHard,ZXing.HybridBinarizer);
-            // рябь от экрана гостя: пробуем размытую копию кадра
-            if(!text){
-              const b=zxBlur(qrCanvas);
-              const bq=jsQR(b.getContext('2d').getImageData(0,0,b.width,b.height),b.width,b.height);
-              if(bq&&bq.data)text=bq.data;
-            }
-            if(!text)text=zxDecode(zxBlur(qrCanvas),zxHard,ZXing.HybridBinarizer);
           }
           if(!text&&qrFrame%8===0){
             text=zxDecode(qrCanvas,zxHard,ZXing.GlobalHistogramBinarizer);
@@ -557,15 +551,6 @@ function zxMake(formats,hard){
 }
 
 // штрихкод под любым углом: кадр поворачивается на 90°/270° перед разбором
-// копия кадра с лёгким размытием: гасит moiré (рябь) от экрана телефона гостя
-function zxBlur(src){
-  if(!qrBlur)qrBlur=document.createElement('canvas');
-  qrBlur.width=src.width;qrBlur.height=src.height;
-  const c=qrBlur.getContext('2d');
-  c.filter='blur(1px)';
-  c.drawImage(src,0,0);
-  return qrBlur;
-}
 function zxRot(src,deg){
   if(!qrRot)qrRot=document.createElement('canvas');
   qrRot.width=deg%180?src.height:src.width;
