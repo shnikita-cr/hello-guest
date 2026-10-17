@@ -25,6 +25,7 @@ import (
 var version = "dev"
 
 func main() {
+	log.SetFlags(0) // метку времени ставит tsWriter в фоновом журнале
 	addr := flag.String("addr", "", "listen address (default :80, fallback :8080)")
 	data := flag.String("data", "./data", "data directory")
 	name := flag.String("name", "hello-guest", "mDNS hostname (<name>.local)")
@@ -117,7 +118,8 @@ func runBackground(data string, args []string) {
 	}
 	off, _ := f.Seek(0, io.SeekEnd)
 	cmd := exec.Command(os.Args[0], args...)
-	cmd.Stdout, cmd.Stderr = f, f
+	logf := tsWriter{f}
+	cmd.Stdout, cmd.Stderr = logf, logf
 	daemonize(cmd)
 	if err := cmd.Start(); err != nil {
 		log.Fatal(err)
@@ -150,6 +152,17 @@ func runBackground(data string, args []string) {
 			}
 		}
 	}
+}
+
+// tsWriter добавляет метку времени в начало каждой записи журнала.
+type tsWriter struct{ w io.Writer }
+
+func (t tsWriter) Write(p []byte) (int, error) {
+	stamp := []byte(time.Now().Format("2006-01-02 15:04:05 "))
+	if _, err := t.w.Write(stamp); err != nil {
+		return 0, err
+	}
+	return t.w.Write(p)
 }
 
 func drainLog(path string, off *int64, seen *[]byte) {
