@@ -193,7 +193,6 @@ async function api(path,opt={}){
 }
 
 async function submitPin(){
-  try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}catch(e){}
   pin=document.getElementById('pinInput').value.trim();
   try{await api('/api/pin');localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();}
   catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
@@ -433,30 +432,35 @@ function openAdd(){show('addPane');document.getElementById('aName').focus();}
 
 let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
 
-let ac;
+const beeps={};
+function beepWav(freq,dur){
+  const key=freq+':'+dur;
+  if(beeps[key])return beeps[key];
+  const sr=8000,n=Math.round(sr*dur),buf=new ArrayBuffer(44+n*2),dv=new DataView(buf);
+  const s=(o,t)=>{for(let i=0;i<t.length;i++)dv.setUint8(o+i,t.charCodeAt(i));};
+  s(0,'RIFF');dv.setUint32(4,36+n*2,true);s(8,'WAVEfmt ');dv.setUint32(16,16,true);
+  dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,sr,true);
+  dv.setUint32(28,sr*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);
+  s(36,'data');dv.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){
+    const env=1-i/n; // затухание, чтобы не щёлкало
+    dv.setInt16(44+i*2,Math.round(Math.sin(2*Math.PI*freq*i/sr)*0.9*32767*env),true);
+  }
+  return beeps[key]=URL.createObjectURL(new Blob([buf],{type:'audio/wav'}));
+}
+function beep(freq,dur){
+  try{const a=new Audio(beepWav(freq,dur));a.volume=1;a.play().catch(()=>{});}catch(e){}
+}
 function buzz(p){
   try{
     const v=navigator.vibrate||navigator.mozVibrate;
     if(v)v.call(navigator,p);
   }catch(e){}
-  // звук играет всегда: вибрация на части устройств «успешна», но не слышна
+  // звук через <audio>: WebAudio осцилляторы Firefox Android глушит во время камеры
   try{
-    if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
-    const play=()=>{
-      // 600+ = ошибка (длинный низкий), 150–599 = повтор (двойной высокий бип), меньше = успех
-      const tones=p>=600?[[220,0.5]]:p>=150?[[988,0.1],[740,0.12]]:[[880,0.08]];
-      let at=ac.currentTime;
-      for(const [f,d] of tones){
-        const o=ac.createOscillator(),g=ac.createGain();
-        o.frequency.value=f;
-        g.gain.setValueAtTime(1,at);
-        g.gain.exponentialRampToValueAtTime(0.001,at+d);
-        o.connect(g);g.connect(ac.destination);
-        o.start(at);o.stop(at+d);
-        at+=d+0.06;
-      }
-    };
-    if(ac.state==='suspended')ac.resume().then(play);else play();
+    if(p>=600)beep(220,0.5); // ошибка — длинный низкий
+    else if(p>=150){beep(988,0.1);setTimeout(()=>beep(740,0.12),160);} // повтор — двойной бип
+    else beep(880,0.08); // успех — короткий высокий
   }catch(e){}
 }
 
@@ -475,7 +479,6 @@ function flashQR(bg,icon,text,sub,ms,tc){
 }
 
 async function startScan(){
-  try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}catch(e){}
   setTimeout(()=>buzz(80),400); // тестовый писк: во время него жмите «громкость+» на устройстве
   const msg=document.getElementById('qrMsg');
   msg.textContent='';msg.style.color='var(--mut)';
@@ -683,10 +686,6 @@ async function openStats(){
 window.addEventListener('online',()=>{flushQueue();refresh();});
 document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
-// разблокировка звука первым касанием (требование Android/iOS)
-document.addEventListener('pointerdown',()=>{
-  try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}catch(e){}
-},{once:true});
 boot();
 </script>
 </body>
