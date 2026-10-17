@@ -41,7 +41,7 @@ h2{font-size:16px;margin:24px 0 8px}
 </div>
 
 <div id="adm" class="hide wrap">
-  <h1>Админ</h1>
+  <h1>Админ <span id="ver" style="font-size:14px;color:var(--mut);font-weight:400"></span></h1>
   <div id="net" class="mut"></div>
 
   <h2>Отчёт регистраций</h2>
@@ -93,6 +93,7 @@ let scanTimer=null;
 async function start(){
   document.getElementById('pinScreen').classList.add('hide');
   document.getElementById('adm').classList.remove('hide');
+  fetch('/api/version').then(r=>r.json()).then(d=>{document.getElementById('ver').textContent='v'+d.version;}).catch(()=>{});
   await loadEvents();
   await loadScans();
   clearInterval(scanTimer);scanTimer=setInterval(loadScans,5000);
