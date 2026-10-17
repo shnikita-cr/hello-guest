@@ -446,7 +446,7 @@ function buzz(p){
     const d=Math.min(p,600)/1000; // 600 = длинный низкий тон ошибки, 80 = короткий успех
     const o=ac.createOscillator(),g=ac.createGain();
     o.frequency.value=p>=600?220:880;
-    g.gain.setValueAtTime(0.25,ac.currentTime);
+    g.gain.setValueAtTime(0.6,ac.currentTime);
     g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
     o.connect(g);g.connect(ac.destination);
     o.start();o.stop(ac.currentTime+d);
