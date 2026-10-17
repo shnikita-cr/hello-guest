@@ -48,6 +48,7 @@ func main() {
 	showVer := flag.Bool("version", false, "print version and exit")
 	detach := flag.Bool("d", false, "show startup info in console, then run in background")
 	backupDir := flag.String("backup-dir", "../../copy-data", "backup directory (relative to data dir)")
+	advertiseIP := flag.String("ip", "", "advertised IP for banner and mDNS (default: auto-detect)")
 	flag.Parse()
 	if *showVer {
 		fmt.Println(version)
@@ -94,21 +95,30 @@ func main() {
 	bk.Start(nil, func(err error) { log.Printf("бэкап: %v", err) })
 	printf("бэкапы: каждые 5 минут → %s\n", bk.DestDir)
 	listener, port := listen(*addr)
-	ip := hostIP()
-	actual := fmt.Sprintf("%s:%d", ip, port)
-	host := *name
-	if port == 80 {
-		printf("hello-guest запущен\n  http://%s\n  http://%s\n", *name+".local", actual)
+	var ips []string
+	if v := parseIPs(*advertiseIP); len(v) > 0 {
+		ips = v
 	} else {
-		printf("hello-guest запущен\n  http://%s:%d\n  http://%s\n", *name+".local", port, actual)
+		ips = availableIPs()
 	}
+	host := *name
+	// в mDNS при автоопределении уходит только основной адрес,
+	// явный список --ip публикуется целиком
+	mdns := ips[:1]
+	if *advertiseIP != "" {
+		mdns = ips
+	}
+	printf("hello-guest запущен\n")
 
 	// TLS на 8443: камера (сканер QR) работает только в secure context
 	certFile, keyFile, err := server.EnsureCert(*data)
 	if err != nil {
 		printf("TLS недоступен: %v\n", err)
 	} else {
-		printf("  https://%s:8443\n  https://%s:8443\n", *name+".local", ip)
+		printf("  https://%s:8443\n", *name+".local")
+		for _, x := range ips {
+			printf("  https://%s:8443\n", x)
+		}
 		go func() {
 			tlsSrv := &http.Server{Addr: ":8443", Handler: srv.Handler()}
 			if err := tlsSrv.ListenAndServeTLS(certFile, keyFile); err != nil {
@@ -118,7 +128,7 @@ func main() {
 	}
 
 	done := make(chan struct{})
-	if sd, err := zeroconf.RegisterProxy(*name, "_http._tcp", "local.", port, host, []string{ip}, nil, nil); err == nil {
+	if sd, err := zeroconf.RegisterProxy(*name, "_http._tcp", "local.", port, host, mdns, nil, nil); err == nil {
 		go func() { <-done; sd.Shutdown() }()
 	} else {
 		printf("mDNS недоступен: %v\n", err)
@@ -254,12 +264,88 @@ func listen(want string) (net.Listener, int) {
 	return l, 8080
 }
 
-func hostIP() string {
-	addrs, _ := net.InterfaceAddrs()
-	for _, a := range addrs {
-		if ipn, ok := a.(*net.IPNet); ok && !ipn.IP.IsLoopback() && ipn.IP.To4() != nil {
-			return ipn.IP.String()
+// parseIPs: несколько адресов для --ip через запятую: --ip 192.168.1.10,10.0.0.5
+func parseIPs(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
 		}
 	}
-	return "127.0.0.1"
+	return out
+}
+
+// ipFact — IPv4-адрес интерфейса; broadcast false для point-to-point (vpn, tun).
+type ipFact struct {
+	ip        net.IP
+	broadcast bool
+}
+
+// gatherIPs: маршрут по умолчанию + IPv4-адреса поднятых не-loopback интерфейсов.
+func gatherIPs() (net.IP, []ipFact) {
+	// адрес источника маршрута по умолчанию: пакет не отправляется, читается только таблица роутинга
+	var route net.IP
+	if c, err := net.Dial("udp4", "1.1.1.1:53"); err == nil {
+		if u, ok := c.LocalAddr().(*net.UDPAddr); ok {
+			route = u.IP
+		}
+		c.Close()
+	}
+	var all []ipFact
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, a := range addrs {
+			ipn, ok := a.(*net.IPNet)
+			if !ok || ipn.IP.To4() == nil {
+				continue
+			}
+			all = append(all, ipFact{ipn.IP, iface.Flags&net.FlagBroadcast != 0})
+		}
+	}
+	return route, all
+}
+
+// availableIPs: все адреса, на которых приложение доступно; первый — предпочтительный.
+func availableIPs() []string {
+	route, all := gatherIPs()
+	prim := chooseIP(route, all)
+	out := []string{prim.String()}
+	seen := map[string]bool{prim.String(): true}
+	for _, f := range all {
+		s := f.ip.String()
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// chooseIP: частный адрес интерфейса маршрута по умолчанию (но не vpn-tun),
+// иначе первый частный адрес обычного интерфейса, иначе сам маршрутный,
+// иначе лупбэк. Ручная правка — флаг --ip.
+func chooseIP(route net.IP, all []ipFact) net.IP {
+	for _, f := range all {
+		if route != nil && f.broadcast && f.ip.Equal(route) && f.ip.IsPrivate() {
+			return route
+		}
+	}
+	for _, f := range all {
+		if f.broadcast && f.ip.IsPrivate() {
+			return f.ip
+		}
+	}
+	if route != nil && !route.IsLoopback() {
+		return route
+	}
+	for _, f := range all {
+		if f.ip.IsPrivate() {
+			return f.ip
+		}
+	}
+	return net.IPv4(127, 0, 0, 1)
 }
