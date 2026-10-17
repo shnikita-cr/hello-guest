@@ -529,34 +529,38 @@ async function startScan(){
         qrCanvas.width=w;qrCanvas.height=h;
         const ctx=qrCanvas.getContext('2d');
         ctx.drawImage(v,0,0,w,h);
-        const img=ctx.getImageData(0,0,w,h);
-        const q=jsQR(img.data,w,h);
-        let text=q&&q.data;
-        if(!text&&window.ZXing){
-          const F=ZXing.BarcodeFormat;
-          if(!zxFast)zxFast=zxMake([F.EAN_13,F.EAN_8,F.CODE_128],false);
-          text=zxDecode(qrCanvas,zxFast,ZXing.HybridBinarizer);
-          if(!text){
-            if(!zxHard)zxHard=zxMake([F.CODE_128,F.EAN_13,F.EAN_8,F.CODE_39,F.ITF],true);
-            if(qrFrame%4===0){
-              text=zxDecode(qrCanvas,zxHard,ZXing.HybridBinarizer);
-              if(!text)text=zxDecode(zxRot(qrCanvas,90),zxHard,ZXing.HybridBinarizer);
-              if(!text)text=zxDecode(zxRot(qrCanvas,270),zxHard,ZXing.HybridBinarizer);
-              // рябь от экрана гостя: размытая копия кадра
-              if(!text){
-                const b=zxBlur(qrCanvas);
-                const bq=jsQR(b.getContext('2d').getImageData(0,0,b.width,b.height),b.width,b.height);
-                if(bq&&bq.data)text=bq.data;
+        // сбой разбора кадра не должен останавливать цикл сканирования
+        let text='';
+        try{
+          const img=ctx.getImageData(0,0,w,h);
+          const q=jsQR(img.data,w,h);
+          text=q&&q.data;
+          if(!text&&window.ZXing){
+            const F=ZXing.BarcodeFormat;
+            if(!zxFast)zxFast=zxMake([F.EAN_13,F.EAN_8,F.CODE_128],false);
+            text=zxDecode(qrCanvas,zxFast,ZXing.HybridBinarizer);
+            if(!text){
+              if(!zxHard)zxHard=zxMake([F.CODE_128,F.EAN_13,F.EAN_8,F.CODE_39,F.ITF],true);
+              if(qrFrame%4===0){
+                text=zxDecode(qrCanvas,zxHard,ZXing.HybridBinarizer);
+                if(!text)text=zxDecode(zxRot(qrCanvas,90),zxHard,ZXing.HybridBinarizer);
+                if(!text)text=zxDecode(zxRot(qrCanvas,270),zxHard,ZXing.HybridBinarizer);
+                // рябь от экрана гостя: размытая копия кадра
+                if(!text){
+                  const b=zxBlur(qrCanvas);
+                  const bq=jsQR(b.getContext('2d').getImageData(0,0,b.width,b.height),b.width,b.height);
+                  if(bq&&bq.data)text=bq.data;
+                }
+                if(!text)text=zxDecode(zxBlur(qrCanvas),zxHard,ZXing.HybridBinarizer);
               }
-              if(!text)text=zxDecode(zxBlur(qrCanvas),zxHard,ZXing.HybridBinarizer);
-            }
-            if(!text&&qrFrame%8===0){
-              text=zxDecode(qrCanvas,zxHard,ZXing.GlobalHistogramBinarizer);
-              if(!text)text=zxDecode(zxRot(qrCanvas,90),zxHard,ZXing.GlobalHistogramBinarizer);
-              if(!text)text=zxDecode(zxRot(qrCanvas,270),zxHard,ZXing.GlobalHistogramBinarizer);
+              if(!text&&qrFrame%8===0){
+                text=zxDecode(qrCanvas,zxHard,ZXing.GlobalHistogramBinarizer);
+                if(!text)text=zxDecode(zxRot(qrCanvas,90),zxHard,ZXing.GlobalHistogramBinarizer);
+                if(!text)text=zxDecode(zxRot(qrCanvas,270),zxHard,ZXing.GlobalHistogramBinarizer);
+              }
             }
           }
-        }
+        }catch(e){}
         qrFrame++;
         if(text)onQR(text);
       }
