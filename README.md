@@ -96,7 +96,7 @@ docker logs hg   # PIN при первом запуске
 | POST | `/api/pin` | проверка PIN |
 | GET | `/api/events` | список мероприятий со счётчиками |
 | GET | `/api/state?event=` | все гости мероприятия |
-| POST | `/api/checkin` | `{"event","guest_id","device"}` — идемпотентно |
+| POST | `/api/checkin` | `{"event","guest_id","device","via"}` — отмечает гостя пришедшим; повторный вызов возвращает `already:true` и ничего не меняет |
 | POST | `/api/undo` | снять отметку |
 | POST | `/api/guest` | до-гость: `{"event","name","phone","email","ticket_type"}` |
 | POST | `/api/import?event=` | тело — CSV-файл |
