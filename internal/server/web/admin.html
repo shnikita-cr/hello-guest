@@ -58,7 +58,7 @@ h2{font-size:16px;margin:24px 0 8px}
   <button class="primary" onclick="downloadReport()">Скачать отчёт</button>
   <div id="repMsg" class="mut" style="margin-top:8px"></div>
 
-  <h2>Журнал сканирований</h2>
+  <h2>Журнал действий</h2>
   <div id="scans"></div>
 </div>
 
@@ -112,18 +112,21 @@ async function loadEvents(){
 async function loadScans(){
   const el=document.getElementById('scans');
   let sc;
-  try{sc=await api('/api/admin/scans');document.getElementById('net').textContent='';}
+  try{sc=await api('/api/admin/journal');document.getElementById('net').textContent='';}
   catch(e){
     document.getElementById('net').textContent=e.message==='pin'?'Сессия устарела — перезайдите':'Нет связи с сервером';
     return;
   }
-  if(!sc.length){el.innerHTML='<div class="mut">Сканирований пока не было</div>';return;}
+  if(!sc.length){el.innerHTML='<div class="mut">Действий пока не было</div>';return;}
   let html='';
   for(const s of sc){
     const code=(s.code||'').length>48?s.code.slice(0,48)+'…':s.code||'';
-    const who=s.result==='ok'
-      ?`<span class="ok">✓ ${esc(s.guest)}</span>${s.device?' · '+esc(s.device):''}`
-      :`<span class="miss">✗ не найден: ${esc(code)}</span>`;
+    let who;
+    if(s.kind==='checkin')who=`<span class="ok">✓ ${esc(s.guest)}</span> · ${s.via==='qr'?'QR/штрихкод':'список'}${s.device?' · '+esc(s.device):''}`;
+    else if(s.kind==='again')who=`<span style="color:var(--warn)">↺ повторный скан: ${esc(s.guest)}</span>${s.device?' · '+esc(s.device):''}`;
+    else if(s.kind==='undo')who=`<span style="color:var(--warn)">− снята отметка: ${esc(s.guest)}</span>`;
+    else if(s.kind==='add')who=`<span class="ok">+ добавлен вручную: ${esc(s.guest)}</span>`;
+    else who=`<span class="miss">✗ не найден: ${esc(code)}</span>`;
     html+=`<div class="row"><span class="ts">${fmtTS(s.ts)}</span><span class="ev">${esc(s.event)}</span><span class="txt">${who}</span></div>`;
   }
   el.innerHTML=html;

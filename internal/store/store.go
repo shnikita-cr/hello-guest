@@ -48,6 +48,9 @@ type Store struct {
 	guests   map[string]map[string]*Guest
 	checkins map[string][]Record
 	qrmiss   map[string][]Record
+	undo     map[string][]Record
+	adds     map[string][]Record
+	again    map[string][]Record
 	hidden   map[string]bool
 }
 
@@ -65,6 +68,9 @@ func Open(path string) (*Store, error) {
 		guests:   map[string]map[string]*Guest{},
 		checkins: map[string][]Record{},
 		qrmiss:   map[string][]Record{},
+		undo:     map[string][]Record{},
+		adds:     map[string][]Record{},
+		again:    map[string][]Record{},
 		hidden:   map[string]bool{},
 	}
 	if err := s.replay(); err != nil {
@@ -109,6 +115,9 @@ func (s *Store) apply(r *Record) {
 			g.ArrivedAt = prev.ArrivedAt
 		}
 		s.guests[r.Event][g.ID] = &g
+		if g.Source == "walkin" {
+			s.adds[r.Event] = append(s.adds[r.Event], *r)
+		}
 	case "checkin":
 		s.checkins[r.Event] = append(s.checkins[r.Event], *r)
 		if s.guests[r.Event] != nil {
@@ -116,6 +125,13 @@ func (s *Store) apply(r *Record) {
 				g.ArrivedAt = r.TS.UTC().Format(time.RFC3339)
 			}
 		}
+	case "undo":
+		s.undo[r.Event] = append(s.undo[r.Event], *r)
+		if g, ok := s.guests[r.Event][r.GuestID]; ok {
+			g.ArrivedAt = ""
+		}
+	case "again":
+		s.again[r.Event] = append(s.again[r.Event], *r)
 	case "event_meta":
 		if r.Hidden != nil {
 			s.hidden[r.Event] = *r.Hidden
@@ -198,6 +214,12 @@ func (s *Store) Checkin(event, guestID, device, via string, now time.Time) (alre
 		return false, ErrNotFound
 	}
 	if g.ArrivedAt != "" {
+		if via == "qr" {
+			r := Record{Kind: "again", Event: event, TS: now.UTC(), GuestID: guestID, Device: device, Via: via}
+			if err := s.append(&r); err == nil {
+				s.apply(&r)
+			}
+		}
 		return true, nil
 	}
 	r := Record{Kind: "checkin", Event: event, TS: now.UTC(), GuestID: guestID, Device: device, Via: via}
@@ -263,15 +285,14 @@ func (s *Store) UndoCheckin(event, guestID string) error {
 	if ev == nil {
 		return ErrNotFound
 	}
-	g, ok := ev[guestID]
-	if !ok {
+	if _, ok := ev[guestID]; !ok {
 		return ErrNotFound
 	}
 	r := Record{Kind: "undo", Event: event, TS: time.Now().UTC(), GuestID: guestID}
 	if err := s.append(&r); err != nil {
 		return err
 	}
-	g.ArrivedAt = ""
+	s.apply(&r)
 	return nil
 }
 
@@ -391,37 +412,57 @@ func (s *Store) Checkins(event string) []Record {
 	return append([]Record(nil), s.checkins[event]...)
 }
 
-type Scan struct {
+type Action struct {
 	TS      time.Time `json:"ts"`
 	Event   string    `json:"event"`
-	Result  string    `json:"result"` // ok | miss
+	Kind    string    `json:"kind"` // checkin | again | undo | miss | add
+	Via     string    `json:"via,omitempty"`
 	Guest   string    `json:"guest,omitempty"`
 	GuestID string    `json:"guest_id,omitempty"`
 	Code    string    `json:"code,omitempty"` // miss: распознанный код
 	Device  string    `json:"device,omitempty"`
 }
 
-// Scans возвращает журнал сканирований всех событий в обратном
-// порядке времени: успешные отметки по QR и ненайденные коды.
-func (s *Store) Scans() []Scan {
+// Journal возвращает журнал действий всех событий в обратном порядке
+// времени: отметки (qr/список), повторные сканы, снятие отметок,
+// добавления вручную и ненайденные коды.
+func (s *Store) Journal() []Action {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := []Scan{}
+	name := func(ev, id string) string {
+		if g, ok := s.guests[ev][id]; ok {
+			return g.Name
+		}
+		return ""
+	}
+	out := []Action{}
 	for ev, rs := range s.checkins {
 		for _, r := range rs {
-			if r.Via != "qr" {
-				continue
-			}
-			name := ""
-			if g, ok := s.guests[ev][r.GuestID]; ok {
-				name = g.Name
-			}
-			out = append(out, Scan{TS: r.TS, Event: ev, Result: "ok", Guest: name, GuestID: r.GuestID, Device: r.Device})
+			out = append(out, Action{TS: r.TS, Event: ev, Kind: "checkin", Via: r.Via, Guest: name(ev, r.GuestID), GuestID: r.GuestID, Device: r.Device})
+		}
+	}
+	for ev, rs := range s.again {
+		for _, r := range rs {
+			out = append(out, Action{TS: r.TS, Event: ev, Kind: "again", Guest: name(ev, r.GuestID), GuestID: r.GuestID, Device: r.Device})
+		}
+	}
+	for ev, rs := range s.undo {
+		for _, r := range rs {
+			out = append(out, Action{TS: r.TS, Event: ev, Kind: "undo", Guest: name(ev, r.GuestID), GuestID: r.GuestID})
 		}
 	}
 	for ev, rs := range s.qrmiss {
 		for _, r := range rs {
-			out = append(out, Scan{TS: r.TS, Event: ev, Result: "miss", Code: r.Code})
+			out = append(out, Action{TS: r.TS, Event: ev, Kind: "miss", Code: r.Code})
+		}
+	}
+	for ev, rs := range s.adds {
+		for _, r := range rs {
+			n := ""
+			if r.Guest != nil {
+				n = r.Guest.Name
+			}
+			out = append(out, Action{TS: r.TS, Event: ev, Kind: "add", Guest: n})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].TS.After(out[j].TS) })
