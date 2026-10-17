@@ -488,8 +488,8 @@ async function onQR(text){
   if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#c9a227','✓','УЖЕ ОТМЕЧЕН',g.name,600);return;}
   g.arrived_at=new Date().toISOString();
   qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});
-  msg.style.color='var(--ok)';msg.textContent='Засчитан: '+g.name;
-  buzz(80);flashQR('#1e8f4e','✓','ЗАСЧИТАН',g.name,450);
+  msg.style.color='var(--ok)';msg.textContent='Отмечен: '+g.name;
+  buzz(80);flashQR('#1e8f4e','✓','ОТМЕЧЕН',g.name,450);
   render();await flushQueue();
 }
 
