@@ -1,11 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -393,11 +391,7 @@ func (s *Server) handleAdminReport(w http.ResponseWriter, r *http.Request) {
 	for _, rec := range s.store.Checkins(ev) {
 		via[rec.GuestID] = rec.Via
 	}
-	var buf bytes.Buffer
-	buf.Write([]byte("\xEF\xBB\xBF"))
-	cw := csv.NewWriter(&buf)
-	cw.Comma = ';'
-	cw.Write([]string{"Имя", "Email", "Телефон", "Тип билета", "Номер билета", "Штрихкод", "Отмечен", "Время прихода", "Способ", "Источник"})
+	rows := [][]string{{"Имя", "Email", "Телефон", "Тип билета", "Номер билета", "Штрихкод", "Отмечен", "Время прихода", "Способ", "Источник"}}
 	for _, g := range guests {
 		marked, arrived := "—", ""
 		if g.ArrivedAt != "" {
@@ -419,24 +413,35 @@ func (s *Server) handleAdminReport(w http.ResponseWriter, r *http.Request) {
 		if g.Source == "walkin" {
 			src = "вручную"
 		}
-		cw.Write([]string{g.Name, g.Email, g.Phone, g.TicketType, g.TicketNumber, g.Barcode, marked, arrived, method, src})
+		rows = append(rows, []string{g.Name, g.Email, g.Phone, g.TicketType, g.TicketNumber, g.Barcode, marked, arrived, method, src})
 	}
-	cw.Flush()
-	name := reportBase(ev) + ".csv"
+	var payload []byte
+	ext, ct := ".csv", "text/csv; charset=utf-8"
+	if r.URL.Query().Get("format") == "xlsx" {
+		x, err := xlsxBytes(rows)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		payload, ext, ct = x, ".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	} else {
+		payload = csvBytes(rows)
+	}
+	name := reportBase(ev) + ext
 	dir := filepath.Join(s.dataDir, "reports")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(path, payload, 0o644); err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.Header().Set("X-Report-File", url.PathEscape(filepath.ToSlash(path)))
-	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Type", ct)
 	w.Header().Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(name))
-	w.Write(buf.Bytes())
+	w.Write(payload)
 }
 
 // reportBase — безопасное имя файла отчёта: имя события + метка времени.

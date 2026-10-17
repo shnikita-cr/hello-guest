@@ -48,7 +48,14 @@ h2{font-size:16px;margin:24px 0 8px}
     <label>Мероприятие</label>
     <select id="ev"></select>
   </div>
-  <button class="primary" onclick="downloadReport()">Скачать CSV-отчёт</button>
+  <div class="field">
+    <label>Формат</label>
+    <select id="fmt">
+      <option value="csv">CSV</option>
+      <option value="xlsx">XLSX</option>
+    </select>
+  </div>
+  <button class="primary" onclick="downloadReport()">Скачать отчёт</button>
   <div id="repMsg" class="mut" style="margin-top:8px"></div>
 
   <h2>Журнал сканирований</h2>
@@ -125,7 +132,8 @@ async function downloadReport(){
   if(!ev){msg.textContent='Нет мероприятий';return;}
   msg.textContent='Готовлю отчёт…';
   try{
-    const r=await fetch('/api/admin/report?event='+encodeURIComponent(ev),{headers:{'X-Pin':pin}});
+    const fmt=document.getElementById('fmt').value;
+    const r=await fetch('/api/admin/report?format='+fmt+'&event='+encodeURIComponent(ev),{headers:{'X-Pin':pin}});
     if(!r.ok)throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
     const saved=decodeURIComponent(r.headers.get('X-Report-File')||'');
     const blob=await r.blob();

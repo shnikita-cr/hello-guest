@@ -1,6 +1,9 @@
 package server
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -43,6 +46,36 @@ func TestAdminReport(t *testing.T) {
 	files, err := os.ReadDir(filepath.Join(dir, "reports"))
 	if err != nil || len(files) != 1 || !strings.HasSuffix(files[0].Name(), ".csv") {
 		t.Fatalf("saved reports: %v err=%v", files, err)
+	}
+
+	reqX := httptest.NewRequest("GET", "/api/admin/report?format=xlsx&event=e1", nil)
+	reqX.Header.Set("X-Pin", "123456")
+	rrX := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rrX, reqX)
+	if rrX.Code != 200 {
+		t.Fatalf("xlsx code=%d body=%s", rrX.Code, rrX.Body.String())
+	}
+	if !strings.HasPrefix(rrX.Body.String(), "PK\x03\x04") {
+		t.Fatal("xlsx must be a zip archive")
+	}
+	zr, err := zip.NewReader(bytes.NewReader(rrX.Body.Bytes()), int64(rrX.Body.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range zr.File {
+		if f.Name == "xl/worksheets/sheet1.xml" {
+			rc, _ := f.Open()
+			var sb strings.Builder
+			io.Copy(&sb, rc)
+			rc.Close()
+			if !strings.Contains(sb.String(), "Иван Иванов") {
+				t.Fatalf("sheet misses guest: %q", sb.String())
+			}
+		}
+	}
+	files, err = os.ReadDir(filepath.Join(dir, "reports"))
+	if err != nil || len(files) != 2 {
+		t.Fatalf("after xlsx saved reports: %v err=%v", files, err)
 	}
 
 	req2 := httptest.NewRequest("GET", "/api/admin/report?event=e1", nil)
