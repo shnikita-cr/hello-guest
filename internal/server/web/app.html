@@ -372,19 +372,22 @@ function filtered(){
   return guests.filter(g=>(g.name||'').toLowerCase().includes(s)||(g.email||'').toLowerCase().includes(s)||(g.phone||'').toLowerCase().includes(s)||(g.ticket_number||'').toLowerCase().includes(s)||(g.barcode||'').toLowerCase().includes(s));
 }
 
+let viewG=[];
 function render(){
-  const list=document.getElementById('list');list.innerHTML='';
-  const gs=filtered();const arrived=guests.filter(g=>g.arrived_at).length;
+  const list=document.getElementById('list');
+  const gs=filtered();
+  gs.sort((a,b)=>((a.arrived_at?1:0)-(b.arrived_at?1:0))||((a.name||'')<(b.name||'')?-1:(a.name||'')>(b.name||'')?1:0));
+  viewG=gs;
+  const arrived=guests.filter(g=>g.arrived_at).length;
   document.getElementById('cArrived').textContent=arrived;
   document.getElementById('cTotal').textContent=guests.length;
   document.getElementById('cPct').textContent=guests.length?'('+Math.round(arrived/guests.length*100)+'%)':'';
-  gs.forEach(g=>{
-    const d=document.createElement('div');
-    d.className='row'+(g.arrived_at?' arrived':'');
-    d.innerHTML=`<div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div>`;
-    d.onclick=()=>tap(g);
-    list.appendChild(d);
-  });
+  let html='';
+  for(let i=0;i<gs.length;i++){
+    const g=gs[i];
+    html+=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
+  }
+  list.innerHTML=html;
 }
 
 function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
@@ -609,6 +612,7 @@ async function openStats(){
 }
 
 window.addEventListener('online',()=>{flushQueue();refresh();});
+document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
 boot();
 </script>
