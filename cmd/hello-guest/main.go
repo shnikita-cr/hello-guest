@@ -48,7 +48,7 @@ func main() {
 	}
 	defer st.Close()
 
-	srv := server.New(cfg, st)
+	srv := server.New(cfg, st, *data)
 	listener, port := listen(*addr)
 	ip := hostIP()
 	actual := fmt.Sprintf("%s:%d", ip, port)

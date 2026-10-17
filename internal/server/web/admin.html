@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hello Guest — админ</title>
+<style>
+:root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--warn:#e67e22;--err:#e74c3c;--acc:#3b82f6}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+.hide{display:none!important}
+button{font:inherit;border:0;border-radius:12px;padding:14px 16px;background:var(--card);color:var(--fg);cursor:pointer;min-height:48px}
+button.primary{background:var(--acc);color:#fff;width:100%}
+input,select{font:inherit;width:100%;padding:14px;border-radius:12px;border:1px solid #2a313a;background:var(--card);color:var(--fg);min-height:48px}
+input:focus,select:focus{outline:2px solid var(--acc)}
+.wrap{max-width:720px;margin:0 auto;padding:16px 12px 60px}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:16px;margin:24px 0 8px}
+.mut{color:var(--mut);font-size:14px}
+.err{color:var(--err);font-size:14px;min-height:20px}
+.pinwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px}
+.pinwrap input{text-align:center;font-size:24px;letter-spacing:8px;max-width:240px}
+.row{display:flex;gap:10px;align-items:baseline;padding:10px 12px;border-radius:10px;background:var(--card);margin-bottom:6px;font-size:14px}
+.row .ts{color:var(--mut);white-space:nowrap}
+.row .ev{color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.row .txt{flex:1}
+.ok{color:var(--ok)}
+.miss{color:var(--err)}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+</style>
+</head>
+<body>
+
+<div id="pinScreen" class="pinwrap">
+  <h1>Hello Guest — админ</h1>
+  <input id="pinInput" type="tel" inputmode="numeric" maxlength="6" placeholder="PIN">
+  <button class="primary" onclick="submitPin()">Войти</button>
+  <div id="pinErr" class="err"></div>
+</div>
+
+<div id="adm" class="hide wrap">
+  <h1>Админ</h1>
+  <div id="net" class="mut"></div>
+
+  <h2>Отчёт регистраций</h2>
+  <div class="field">
+    <label>Мероприятие</label>
+    <select id="ev"></select>
+  </div>
+  <button class="primary" onclick="downloadReport()">Скачать CSV-отчёт</button>
+  <div id="repMsg" class="mut" style="margin-top:8px"></div>
+
+  <h2>Журнал сканирований</h2>
+  <div id="scans"></div>
+</div>
+
+<script>
+let pin=localStorage.getItem('hg_pin')||'';
+
+async function api(path,opt={}){
+  const h=Object.assign({'X-Pin':pin},opt.headers||{});
+  const r=await fetch(path,Object.assign({},opt,{headers:h}));
+  if(r.status===401)throw new Error('pin');
+  if(!r.ok)throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
+  return r.json();
+}
+
+async function submitPin(){
+  pin=document.getElementById('pinInput').value.trim();
+  try{await api('/api/pin');localStorage.setItem('hg_pin',pin);start();}
+  catch(e){document.getElementById('pinErr').textContent='Неверный PIN';}
+}
+
+function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+
+function fmtTS(iso){
+  const d=new Date(iso);
+  const p=n=>String(n).padStart(2,'0');
+  return p(d.getDate())+'.'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+}
+
+let scanTimer=null;
+
+async function start(){
+  document.getElementById('pinScreen').classList.add('hide');
+  document.getElementById('adm').classList.remove('hide');
+  await loadEvents();
+  await loadScans();
+  clearInterval(scanTimer);scanTimer=setInterval(loadScans,5000);
+}
+
+async function loadEvents(){
+  try{
+    const evs=await api('/api/events');
+    const sel=document.getElementById('ev');
+    sel.innerHTML=evs.map(e=>`<option value="${esc(e.event)}">${esc(e.event)} (${e.arrived}/${e.total})</option>`).join('');
+  }catch(e){
+    document.getElementById('net').textContent=e.message==='pin'?'Сессия устарела — перезайдите':'Нет связи с сервером';
+  }
+}
+
+async function loadScans(){
+  const el=document.getElementById('scans');
+  let sc;
+  try{sc=await api('/api/admin/scans');document.getElementById('net').textContent='';}
+  catch(e){
+    document.getElementById('net').textContent=e.message==='pin'?'Сессия устарела — перезайдите':'Нет связи с сервером';
+    return;
+  }
+  if(!sc.length){el.innerHTML='<div class="mut">Сканирований пока не было</div>';return;}
+  let html='';
+  for(const s of sc){
+    const who=s.result==='ok'
+      ?`<span class="ok">✓ ${esc(s.guest)}</span>${s.device?' · '+esc(s.device):''}`
+      :`<span class="miss">✗ не найден: ${esc(s.code)}</span>`;
+    html+=`<div class="row"><span class="ts">${fmtTS(s.ts)}</span><span class="ev">${esc(s.event)}</span><span class="txt">${who}</span></div>`;
+  }
+  el.innerHTML=html;
+}
+
+async function downloadReport(){
+  const ev=document.getElementById('ev').value;
+  const msg=document.getElementById('repMsg');
+  if(!ev){msg.textContent='Нет мероприятий';return;}
+  msg.textContent='Готовлю отчёт…';
+  try{
+    const r=await fetch('/api/admin/report?event='+encodeURIComponent(ev),{headers:{'X-Pin':pin}});
+    if(!r.ok)throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
+    const saved=decodeURIComponent(r.headers.get('X-Report-File')||'');
+    const blob=await r.blob();
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=saved.split('/').pop()||'report.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    msg.textContent='Отчёт скачан. Файл также сохранён на сервере: '+saved;
+  }catch(e){msg.textContent=e.message;}
+}
+
+document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
+
+(async()=>{
+  if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
+  try{await api('/api/pin');start();}
+  catch(e){document.getElementById('pinScreen').classList.remove('hide');}
+})();
+</script>
+</body>
+</html>
