@@ -123,7 +123,7 @@ async function loadScans(){
     const code=(s.code||'').length>48?s.code.slice(0,48)+'…':s.code||'';
     let who;
     if(s.kind==='checkin')who=`<span class="ok">✓ ${esc(s.guest)}</span> · ${s.via==='qr'?'QR/штрихкод':'список'}${s.device?' · '+esc(s.device):''}`;
-    else if(s.kind==='again')who=`<span style="color:var(--warn)">↺ повторный скан: ${esc(s.guest)}</span>${s.device?' · '+esc(s.device):''}`;
+    else if(s.kind==='again')who=`<span style="color:var(--warn)">↺ повторно: ${esc(s.guest)} · ${s.via==='qr'?'QR/штрихкод':'список'}</span>${s.device?' · '+esc(s.device):''}`;
     else if(s.kind==='undo')who=`<span style="color:var(--warn)">− снята отметка: ${esc(s.guest)}</span>`;
     else if(s.kind==='add')who=`<span class="ok">+ добавлен вручную: ${esc(s.guest)}</span>`;
     else who=`<span class="miss">✗ не найден: ${esc(code)}</span>`;

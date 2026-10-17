@@ -214,11 +214,9 @@ func (s *Store) Checkin(event, guestID, device, via string, now time.Time) (alre
 		return false, ErrNotFound
 	}
 	if g.ArrivedAt != "" {
-		if via == "qr" {
-			r := Record{Kind: "again", Event: event, TS: now.UTC(), GuestID: guestID, Device: device, Via: via}
-			if err := s.append(&r); err == nil {
-				s.apply(&r)
-			}
+		r := Record{Kind: "again", Event: event, TS: now.UTC(), GuestID: guestID, Device: device, Via: via}
+		if err := s.append(&r); err == nil {
+			s.apply(&r)
 		}
 		return true, nil
 	}
