@@ -102,6 +102,8 @@ async function loadEvents(){
     const evs=await api('/api/events');
     const sel=document.getElementById('ev');
     sel.innerHTML=evs.map(e=>`<option value="${esc(e.event)}">${esc(e.event)} (${e.arrived}/${e.total})</option>`).join('');
+    const saved=localStorage.getItem('hg_admin_event');
+    if(saved&&evs.some(e=>e.event===saved))sel.value=saved;
   }catch(e){
     document.getElementById('net').textContent=e.message==='pin'?'Сессия устарела — перезайдите':'Нет связи с сервером';
   }
@@ -118,7 +120,7 @@ async function loadScans(){
   if(!sc.length){el.innerHTML='<div class="mut">Сканирований пока не было</div>';return;}
   let html='';
   for(const s of sc){
-    const code=s.code.length>48?s.code.slice(0,48)+'…':s.code;
+    const code=(s.code||'').length>48?s.code.slice(0,48)+'…':s.code||'';
     const who=s.result==='ok'
       ?`<span class="ok">✓ ${esc(s.guest)}</span>${s.device?' · '+esc(s.device):''}`
       :`<span class="miss">✗ не найден: ${esc(code)}</span>`;
@@ -148,6 +150,7 @@ async function downloadReport(){
 }
 
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
+document.getElementById('ev').addEventListener('change',e=>localStorage.setItem('hg_admin_event',e.target.value));
 
 (async()=>{
   if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
