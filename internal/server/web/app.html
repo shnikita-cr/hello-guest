@@ -443,13 +443,18 @@ function buzz(p){
   try{
     if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();
     const play=()=>{
-      const d=Math.min(p,600)/1000; // 600 = длинный низкий тон ошибки, 80 = короткий успех
-      const o=ac.createOscillator(),g=ac.createGain();
-      o.frequency.value=p>=600?220:880;
-      g.gain.setValueAtTime(0.6,ac.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+d);
-      o.connect(g);g.connect(ac.destination);
-      o.start();o.stop(ac.currentTime+d);
+      // 600+ = ошибка (длинный низкий), 150–599 = повтор (двойной высокий бип), меньше = успех
+      const tones=p>=600?[[220,0.5]]:p>=150?[[988,0.1],[740,0.12]]:[[880,0.08]];
+      let at=ac.currentTime;
+      for(const [f,d] of tones){
+        const o=ac.createOscillator(),g=ac.createGain();
+        o.frequency.value=f;
+        g.gain.setValueAtTime(1,at);
+        g.gain.exponentialRampToValueAtTime(0.001,at+d);
+        o.connect(g);g.connect(ac.destination);
+        o.start(at);o.stop(at+d);
+        at+=d+0.06;
+      }
     };
     if(ac.state==='suspended')ac.resume().then(play);else play();
   }catch(e){}
