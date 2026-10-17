@@ -25,6 +25,21 @@ import (
 
 var version = "dev"
 
+// daemonMode: фоновый ребёнок пишет стартовый вывод сам, в файл журнала
+// с меткой времени; обычный режим — в консоль.
+var daemonMode bool
+var logfile io.Writer
+
+func printf(format string, a ...any) {
+	msg := fmt.Sprintf(format, a...)
+	if logfile != nil {
+		io.WriteString(logfile, msg)
+	}
+	if !daemonMode {
+		os.Stdout.WriteString(msg)
+	}
+}
+
 func main() {
 	log.SetFlags(0) // метку времени ставит tsWriter в фоновом журнале
 	addr := flag.String("addr", "", "listen address (default :80, fallback :8080)")
@@ -46,13 +61,20 @@ func main() {
 	if err := os.MkdirAll(*data, 0o755); err != nil {
 		log.Fatal(err)
 	}
+	if os.Getenv("HG_DAEMON") == "1" {
+		daemonMode = true
+		if lf, err := os.OpenFile(filepath.Join(*data, "hello-guest.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+			logfile = tsWriter{lf}
+			log.SetOutput(logfile)
+		}
+	}
 
 	cfg, pin, err := server.LoadOrCreateConfig(*data)
 	if err != nil {
 		log.Fatal(err)
 	}
 	if pin != "" {
-		fmt.Printf("\n  PIN: %s\n\n", pin)
+		printf("\n  PIN: %s\n\n", pin)
 	}
 
 	st, err := store.Open(*data + "/hello-guest.ndjson")
@@ -70,27 +92,27 @@ func main() {
 		bk.DestDir = filepath.Join(*data, bk.DestDir)
 	}
 	bk.Start(nil, func(err error) { log.Printf("бэкап: %v", err) })
-	fmt.Printf("бэкапы: каждые 5 минут → %s\n", bk.DestDir)
+	printf("бэкапы: каждые 5 минут → %s\n", bk.DestDir)
 	listener, port := listen(*addr)
 	ip := hostIP()
 	actual := fmt.Sprintf("%s:%d", ip, port)
 	host := *name
 	if port == 80 {
-		fmt.Printf("hello-guest запущен\n  http://%s\n  http://%s\n", *name+".local", actual)
+		printf("hello-guest запущен\n  http://%s\n  http://%s\n", *name+".local", actual)
 	} else {
-		fmt.Printf("hello-guest запущен\n  http://%s:%d\n  http://%s\n", *name+".local", port, actual)
+		printf("hello-guest запущен\n  http://%s:%d\n  http://%s\n", *name+".local", port, actual)
 	}
 
 	// TLS на 8443: камера (сканер QR) работает только в secure context
 	certFile, keyFile, err := server.EnsureCert(*data)
 	if err != nil {
-		fmt.Printf("TLS недоступен: %v\n", err)
+		printf("TLS недоступен: %v\n", err)
 	} else {
-		fmt.Printf("  https://%s:8443\n  https://%s:8443\n", *name+".local", ip)
+		printf("  https://%s:8443\n  https://%s:8443\n", *name+".local", ip)
 		go func() {
 			tlsSrv := &http.Server{Addr: ":8443", Handler: srv.Handler()}
 			if err := tlsSrv.ListenAndServeTLS(certFile, keyFile); err != nil {
-				fmt.Printf("TLS: %v\n", err)
+				printf("TLS: %v\n", err)
 			}
 		}()
 	}
@@ -99,7 +121,7 @@ func main() {
 	if sd, err := zeroconf.RegisterProxy(*name, "_http._tcp", "local.", port, host, []string{ip}, nil, nil); err == nil {
 		go func() { <-done; sd.Shutdown() }()
 	} else {
-		fmt.Printf("mDNS недоступен: %v\n", err)
+		printf("mDNS недоступен: %v\n", err)
 	}
 
 	go func() {
@@ -129,8 +151,11 @@ func runBackground(data string, args []string) {
 	}
 	off, _ := f.Seek(0, io.SeekEnd)
 	cmd := exec.Command(os.Args[0], args...)
-	logf := tsWriter{f}
-	cmd.Stdout, cmd.Stderr = logf, logf
+	// ребёнок сам пишет в файл журнала (HG_DAEMON): stdout в /dev/null,
+	// stderr напрямую в файл — никаких pipe, которые умирают с родителем
+	cmd.Stdout = nil
+	cmd.Stderr = f
+	cmd.Env = append(os.Environ(), "HG_DAEMON=1")
 	daemonize(cmd)
 	if err := cmd.Start(); err != nil {
 		log.Fatal(err)
