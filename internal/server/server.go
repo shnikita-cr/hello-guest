@@ -154,6 +154,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/zxing.js", s.handleZXing)
 	s.mux.HandleFunc("/admin", s.handleAdmin)
 	s.mux.HandleFunc("/status", s.local(s.handleStatusPage))
+	s.mux.HandleFunc("/reset", s.handleReset)
 	s.mux.HandleFunc("/api/status", s.local(s.handleStatusAPI))
 	s.mux.HandleFunc("/api/status/pin", s.local(s.handleStatusPin))
 	s.mux.HandleFunc("/api/admin/backup", s.local(s.handleBackupNow))
@@ -275,6 +276,11 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStatusPage(w http.ResponseWriter, r *http.Request) {
 	s.serveHTML(w, r, "web/status.html")
+}
+
+// handleReset: страница сброса кэша/воркера на устройстве (телефон, планшет).
+func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
+	s.serveHTML(w, r, "web/reset.html")
 }
 
 func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {

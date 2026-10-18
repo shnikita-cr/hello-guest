@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Сброс — Hello Guest</title>
+<style>
+body{margin:0;font:16px/1.5 -apple-system,system-ui,sans-serif;background:#0f1216;color:#e8edf2;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.box{max-width:420px;text-align:center}
+h1{font-size:20px;margin:0 0 10px}
+p{color:#8a94a0;font-size:14px}
+button{font:inherit;border:0;border-radius:12px;padding:12px 20px;background:#3b82f6;color:#fff;margin-top:12px}
+#res{margin-top:12px;color:#2ecc71;min-height:22px}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Сброс этой страницы</h1>
+  <p>Удаляет служебный воркер, кэш и локальные данные сайта (PIN, очередь, код устройства). После сброса откроется свежая версия приложения — вход по PIN заново.</p>
+  <button id="go">Сбросить сейчас</button>
+  <div id="res"></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+async function go() {
+  $('go').disabled = true;
+  const done = [];
+  try {
+    if ('serviceWorker' in navigator) {
+      for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    }
+    if (self.caches) {
+      for (const k of await caches.keys()) await caches.delete(k);
+    }
+    localStorage.clear();
+    sessionStorage.clear();
+    done.push('очищено');
+  } catch (e) {
+    done.push('ошибка: ' + e.message);
+  }
+  $('res').textContent = done.join(', ') + ' — обновляю…';
+  setTimeout(() => location.replace('/?t=' + Date.now()), 700);
+}
+$('go').addEventListener('click', go);
+go();
+</script>
+</body>
+</html>
