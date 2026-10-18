@@ -225,9 +225,9 @@ function renderTabs(){
   document.getElementById('tabSrc').classList.toggle('hide',!authed);
   updateTabAdd();
 }
-// «+ Гость» и «Статистика» — только внутри выбранного мероприятия
+// «+ Гость» и «Статистика» — внутри мероприятия, включая экраны этих вкладок
 function updateTabAdd(){
-  const on=!!localStorage.getItem('hg_pin')&&!!event&&screen==='app';
+  const on=!!localStorage.getItem('hg_pin')&&!!event&&['app','addPane','statsPane'].includes(screen);
   document.getElementById('tabAdd').classList.toggle('hide',!on);
   document.getElementById('tabStats').classList.toggle('hide',!on);
 }
