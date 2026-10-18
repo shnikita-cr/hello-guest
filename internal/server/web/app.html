@@ -32,9 +32,11 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .vt button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
 .grp{background:var(--card);border-radius:12px;margin-bottom:8px;overflow:hidden}
 .grp .row{margin-bottom:0;border-radius:0;background:none}
-.mlist{padding:2px 14px 12px 44px}
-.mem{font-size:13px;color:var(--mut);padding:3px 0}
-.mem.in{color:var(--ok)}
+.mlist{padding:4px 14px 14px}
+.mem{display:flex;align-items:center;gap:12px;padding:14px;background:#2a313a;border-radius:12px;margin-top:8px;font-size:15px;font-weight:600;color:var(--fg);cursor:pointer}
+.mem .mark{width:14px;height:14px;border-radius:50%;background:#3a4451;flex:none}
+.mem span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mem.in .mark{background:var(--ok)}
 .chev{color:var(--mut);font-weight:400;padding-left:8px}
 .gbtn{width:100%;min-height:40px;padding:8px;font-size:14px;background:#2a313a;margin-top:8px}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
@@ -431,13 +433,6 @@ async function pushMembers(g,members){
   }
   qpush({t:'member',...body});saveQueue();updateQueueN();
 }
-// кнопка «Отметить группу»: билет + все члены разом (или снять все)
-async function checkGroup(g){
-  const on=!g.arrived_at,m={};
-  roster(g).forEach(x=>m[x.n]=on);
-  await pushMembers(g,m);
-  tap(g);
-}
 // countLine: в виде участников — люди, в виде групп — все билеты
 // (соло + капитаны команд), плюс метрики средних по тру-группам
 function countLine(){
@@ -478,10 +473,8 @@ function render(){
       const r=roster(g);
       let body='';
       if(open){
-        const rows=r.map((x,mi)=>`<div class="mem${x.on?' in':''}"${team?` data-mem="${mi}" data-mi="${i}"`:''}>${x.on?'✓ ':''}${esc(x.n)}</div>`).join('');
-        const btn=team
-          ?`<button class="gbtn" data-grp="${i}">${g.arrived_at?'Снять отметку':'Отметить группу'}</button>`
-          :`<button class="gbtn" data-solo="${i}">${g.arrived_at?'Снять отметку':'Отметить'}</button>`;
+        const rows=r.map((x,mi)=>`<div class="mem${x.on?' in':''}"${team?` data-mem="${mi}" data-mi="${i}"`:''}><div class="mark"></div><span>${esc(x.n)}</span></div>`).join('');
+        const btn=team?'':`<button class="gbtn" data-solo="${i}">${g.arrived_at?'Снять отметку':'Отметить'}</button>`;
         body=`<div class="mlist">${rows}${btn}</div>`;
       }
       const title=team?(g.team||g.name):g.name;
@@ -841,8 +834,6 @@ document.getElementById('list').addEventListener('click',e=>{
     if(x)pushMembers(g,memberSnap(g,x.n));
     return;
   }
-  const gb=e.target.closest('[data-grp]');
-  if(gb){checkGroup(viewG[+gb.dataset.grp]);return;}
   const sb=e.target.closest('[data-solo]');
   if(sb){tap(viewG[+sb.dataset.solo]);return;}
   const r=e.target.closest('.row');
