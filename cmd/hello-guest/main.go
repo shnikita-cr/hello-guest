@@ -95,7 +95,7 @@ func main() {
 	}
 	defer st.Close()
 
-	server.Version = version
+	server.Version = strings.TrimPrefix(version, "v")
 	srv := server.New(cfg, st, *data)
 
 	// бэкапы каталога данных: каждые 5 минут zip, хранятся последние 20
