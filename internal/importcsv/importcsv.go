@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"io"
+	"regexp"
 	"strings"
 
 	"hello-guest/internal/store"
@@ -22,10 +23,12 @@ var headerAliases = map[string][]string{
 	"status":        {"статус", "status"},
 	"promocode":     {"промокод", "promocode", "promo"},
 	"sum":           {"сумма", "sum", "цена", "price", "стоимость"},
+	"team":          {"название команды", "команда", "team name", "team"},
+	"members":       {"фио участников команды", "фио участников", "состав команды"},
 }
 
 type mapping struct {
-	OrderID, Barcode, TicketNumber, TicketType, Email, Phone, Name, FirstName, LastName, Status, Promocode, Sum string
+	OrderID, Barcode, TicketNumber, TicketType, Email, Phone, Name, FirstName, LastName, Status, Promocode, Sum, Team, Members string
 }
 
 func detect(headers []string) mapping {
@@ -55,6 +58,8 @@ func detect(headers []string) mapping {
 		{"status", &m.Status},
 		{"promocode", &m.Promocode},
 		{"sum", &m.Sum},
+		{"team", &m.Team},
+		{"members", &m.Members},
 	}
 	match := func(t target, exact bool) bool {
 		if *t.dst != "" {
@@ -187,6 +192,16 @@ func guestsFrom(t table, event string) []store.Guest {
 		if m.Status != "" {
 			g.Status = col(row, normalize(m.Status))
 		}
+		if m.Team != "" {
+			if v := col(row, normalize(m.Team)); v != "" && v != "-" {
+				g.Team = strings.TrimSpace(v)
+			}
+		}
+		if m.Members != "" {
+			if v := col(row, normalize(m.Members)); v != "" && v != "-" {
+				g.Members = splitMembers(v)
+			}
+		}
 		if m.FirstName != "" && m.LastName != "" {
 			fn := col(row, normalize(m.FirstName))
 			ln := col(row, normalize(m.LastName))
@@ -203,6 +218,63 @@ func guestsFrom(t table, event string) []store.Guest {
 		guests = append(guests, g)
 	}
 	return guests
+}
+
+// splitMembers делит склеенные Timepadом ФИО. Два признака границы:
+// склейка без пробела («ВикторовнаАнисимова») и отчество с пробелом
+// перед новым ФИО («Евгеньевна Платонова»). ponytail: эвристика по
+// заглавной и окончаниям отчеств; точного парсера в данных не нужно.
+var reAfterOtchestvo = regexp.MustCompile(`[а-яё]+(?:овна|евна|ич|ыч)\s+`)
+
+func splitMembers(s string) []string {
+	var chunks []string
+	last := 0
+	for _, m := range reAfterOtchestvo.FindAllStringIndex(s, -1) {
+		chunks = append(chunks, s[last:m[1]])
+		last = m[1]
+	}
+	chunks = append(chunks, s[last:])
+	var out []string
+	for _, ch := range chunks {
+		segs := splitGlued(ch)
+		for _, seg := range segs {
+			w := strings.Fields(seg)
+			// ФИО без отчеств («Севастьянова Мария Кочергина Светлана...»):
+			// граница ни склейкой, ни отчеством не поймать — режем по два слова
+			if len(segs) == 1 && len(w) >= 4 && len(w)%2 == 0 && !reAfterOtchestvo.MatchString(seg) {
+				for i := 0; i < len(w); i += 2 {
+					out = append(out, w[i]+" "+w[i+1])
+				}
+				continue
+			}
+			out = append(out, seg)
+		}
+	}
+	return out
+}
+
+func splitGlued(s string) []string {
+	var out []string
+	var cur []rune
+	var prev rune
+	isLower := func(r rune) bool { return r == 'ё' || (r >= 'а' && r <= 'я') }
+	isUpper := func(r rune) bool { return r == 'Ё' || (r >= 'А' && r <= 'Я') }
+	for _, r := range s {
+		if len(cur) > 0 && isLower(prev) && isUpper(r) {
+			if p := strings.TrimSpace(string(cur)); p != "" {
+				out = append(out, p)
+			}
+			cur = nil
+		}
+		cur = append(cur, r)
+		prev = r
+	}
+	if len(cur) > 0 {
+		if p := strings.TrimSpace(string(cur)); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func guestID(g store.Guest) string {
