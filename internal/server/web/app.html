@@ -43,7 +43,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .stat .v{font-size:28px;font-weight:700}
 .stat .l{font-size:13px;color:var(--mut)}
 .bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px}
-.bar .t{width:120px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .t{width:160px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar .f{flex:1;height:20px;background:var(--card);border-radius:6px;overflow:hidden}
 .bar .f i{display:block;height:100%;background:var(--acc)}
 .tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid #2a313a}
@@ -134,7 +134,6 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   </div>
   <h2 style="font-size:16px">По типам билета</h2>
   <div id="sTypes"></div>
-  <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
 </div>
 
 <div id="srcPane" class="pane hide">
@@ -161,7 +160,6 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   </div>
   <button class="primary" onclick="doRefresh()">Подтянуть из Timepad</button>
   <div id="srcLog" class="err" style="color:var(--ok)"></div>
-  <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
 </div>
 
 <div id="qrFlash" class="hide" onclick="this.classList.add('hide')" style="position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center">
