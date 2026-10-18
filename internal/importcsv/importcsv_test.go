@@ -63,6 +63,60 @@ func TestDedupKeepsTicketType(t *testing.T) {
 	}
 }
 
+const sampleTeams = `Заказ,Номер билета,Тип билета,Фамилия,Имя,Название команды,Контакт для связи с капитаном,ФИО участников команды
+90695804,97155249,Командный билет,Гусакова,Дарья,Таможенный экспорт,TG: @prepa_rat,Гусакова Дарья ВикторовнаАнисимова Анна ОлеговнаСамсонова Елизавета ГеннадьевнаБерезовская Софья Александровна
+90654090,95603926,Сольный билет,Шепелев,Андрей,-,a.shepelyov@gmail.com,-
+`
+
+func TestParseTeams(t *testing.T) {
+	guests, err := Parse(strings.NewReader(sampleTeams), "e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(guests) != 2 {
+		t.Fatalf("want 2 guests, got %d", len(guests))
+	}
+	var team, solo *store.Guest
+	for i := range guests {
+		if guests[i].Team != "" {
+			team = &guests[i]
+		} else {
+			solo = &guests[i]
+		}
+	}
+	if team == nil || solo == nil {
+		t.Fatalf("team/solo not detected: %+v", guests)
+	}
+	if team.Team != "Таможенный экспорт" {
+		t.Errorf("team = %q", team.Team)
+	}
+	if len(team.Members) != 4 {
+		t.Errorf("members = %q (want 4)", team.Members)
+	}
+	if team.Members[0] != "Гусакова Дарья Викторовна" || team.Members[3] != "Березовская Софья Александровна" {
+		t.Errorf("members split wrong: %q", team.Members)
+	}
+	if solo.Team != "" || solo.Members != nil {
+		t.Errorf("solo must have no team: %+v", solo)
+	}
+}
+
+func TestSplitMembers(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int
+	}{
+		{"Маршенко Кристиан Евгеньевна Платонова Наталья ПавловнаИванов Геннадий ИгоревичВиролайнен Алина Андреевна", 4},
+		{"Только я :(", 1},
+		{"Иванов Пётр", 1},
+	}
+	for _, c := range cases {
+		if got := len(splitMembers(c.in)); got != c.want {
+			t.Errorf("splitMembers(%q) = %d parts, want %d", c.in, got, c.want)
+		}
+	}
+}
+
 func TestParseRealFile(t *testing.T) {
 	f, err := os.Open("../../sample_timepad.csv")
 	if err != nil {

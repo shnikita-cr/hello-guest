@@ -14,18 +14,20 @@ import (
 )
 
 type Guest struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Email        string `json:"email,omitempty"`
-	Phone        string `json:"phone,omitempty"`
-	TicketType   string `json:"ticket_type,omitempty"`
-	OrderID      string `json:"order_id,omitempty"`
-	TicketNumber string `json:"ticket_number,omitempty"`
-	Barcode      string `json:"barcode,omitempty"`
-	Source       string `json:"source,omitempty"`
-	Status       string `json:"status,omitempty"`
-	ArrivedAt    string `json:"arrived_at,omitempty"`
-	Event        string `json:"event"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Email        string   `json:"email,omitempty"`
+	Phone        string   `json:"phone,omitempty"`
+	TicketType   string   `json:"ticket_type,omitempty"`
+	Team         string   `json:"team,omitempty"`
+	Members      []string `json:"members,omitempty"`
+	OrderID      string   `json:"order_id,omitempty"`
+	TicketNumber string   `json:"ticket_number,omitempty"`
+	Barcode      string   `json:"barcode,omitempty"`
+	Source       string   `json:"source,omitempty"`
+	Status       string   `json:"status,omitempty"`
+	ArrivedAt    string   `json:"arrived_at,omitempty"`
+	Event        string   `json:"event"`
 }
 
 type Record struct {
