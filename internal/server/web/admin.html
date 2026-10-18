@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👨‍💻</text></svg>">
-<title>👋 Hello Guest - Admin</title>
+<title>👨‍💻 Hello Guest - Admin</title>
 <style>
 :root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--warn:#e67e22;--err:#e74c3c;--acc:#3b82f6}
 *{box-sizing:border-box}
@@ -99,7 +99,7 @@ let scanTimer=null;
 async function start(){
   document.getElementById('pinScreen').classList.add('hide');
   document.getElementById('adm').classList.remove('hide');
-  fetch('/api/version').then(r=>r.json()).then(d=>{document.getElementById('ver').textContent='v'+d.version;}).catch(()=>{});
+  fetch('/api/version').then(r=>r.json()).then(d=>{document.getElementById('ver').textContent='v'+d.version;document.title='👨‍💻 Hello Guest - Admin · v'+d.version;}).catch(()=>{});
   await loadEvents();
   await loadScans();
   clearInterval(scanTimer);scanTimer=setInterval(loadScans,5000);

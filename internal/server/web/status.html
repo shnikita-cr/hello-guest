@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hello Guest — статус</title>
+<title>⚙️ Hello Guest - Status</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
 <style>
 :root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--err:#e74c3c;--acc:#3b82f6}
@@ -22,7 +22,7 @@ h1{font-size:18px;margin:2px 0 10px;display:flex;gap:10px;align-items:center}
 .heart.off{animation-duration:.5s}
 @keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.28)}28%{transform:scale(1)}42%{transform:scale(1.18)}56%{transform:scale(1)}}
 .state{display:flex;gap:10px;align-items:center;font-size:16px}
-.state .dot{width:12px;height:12px;border-radius:50%;background:var(--err);flex:none}
+.state .dot{width:12px;height:12px;border-radius:50%;background:#ff2525;flex:none}
 .state.down .dot{background:var(--acc)}
 ul.ips{list-style:none;margin:6px 0 0;padding:0}
 ul.ips li{margin:3px 0}
@@ -71,11 +71,11 @@ button:disabled{opacity:.5}
   </div>
 
   <div class="card" id="pinCard">
-    <div class="label">PIN</div>
+    <div class="label">PIN админ-панели</div>
     <div class="pin" id="pinValue">••••••</div>
     <form id="pinForm" hidden>
-      <input id="pinInput" inputmode="numeric" autocomplete="off" placeholder="Введите PIN для показа">
-      <button>Сохранить</button>
+      <input id="pinInput" inputmode="numeric" autocomplete="off" placeholder="введите PIN">
+      <button>Запомнить</button>
     </form>
     <div class="msg" id="pinMsg"></div>
   </div>
@@ -118,8 +118,10 @@ async function poll() {
           + (e.device ? ' · ' + e.device : '') + ' — '
           + (e.kind === 'join' ? 'подключился' : 'вышел из сети') + '</li>').join('')
       : '<li class="mut">событий не было</li>';
+    document.title = '⚙️ Hello Guest - Status · ' + ver;
     const h = Math.floor(s.uptime / 3600), m = Math.floor(s.uptime % 3600 / 60);
-    $('meta').textContent = 'v' + s.version + ' · uptime ' + (h ? h + ' ч ' : '') + m + ' мин';
+    const ver = 'v' + s.version;
+    $('meta').textContent = ver + ' · uptime ' + (h ? h + ' ч ' : '') + m + ' мин';
     $('ips').innerHTML = (s.ips && s.ips.length)
       ? s.ips.map(ip => '<li><a href="https://' + ip + ':8443">https://' + ip + ':8443</a></li>').join('')
       : '<li class="mut">нет подключённых сетей</li>';
