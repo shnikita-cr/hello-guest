@@ -34,6 +34,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .grp .row{margin-bottom:0;border-radius:0;background:none}
 .mlist{padding:2px 14px 12px 44px}
 .mem{font-size:13px;color:var(--mut);padding:3px 0}
+.mem.in{color:var(--ok)}
 .chev{color:var(--mut);font-weight:400;padding-left:8px}
 .gbtn{width:100%;min-height:40px;padding:8px;font-size:14px;background:#2a313a;margin-top:8px}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
@@ -89,6 +90,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
     <span id="liveDot" class="dot">❤️</span>
   </div>
   <div class="count" id="countLine">пришло 0 / 0</div>
+  <div class="count" id="metLine" style="display:none"></div>
   <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Группы</button></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/Barcode</button>
@@ -402,15 +404,59 @@ function filtered(){
 }
 
 let viewG=[];
-const expanded=new Set(); // открытые составы групп в виде «Группы»
-// countLine: в виде участников считаем людей (члены команды в счёт входят),
-// в виде групп — только командные билеты
+const expanded=new Set(); // открытые составы в виде «Группы»
+// группа = командный билет по названию команды или типу билета:
+// так группы не обнуляются на данных, импортированных до появления поля team
+const isTeam=g=>!!g.team||/командн/i.test(g.ticket_type||'');
+// люди для отображения: члены команды, либо сам гость (соло/команда без состава)
+function roster(g){
+  const names=(g.members&&g.members.length)?g.members:[g.name];
+  const m=g.member_arrived;
+  if(m&&Object.keys(m).length)return names.map(n=>({n,on:!!m[n]}));
+  return names.map(n=>({n,on:!!g.arrived_at}));
+}
+// полный снапшот отметок членов; flip — переключить одного, без него — разом все
+function memberSnap(g,flip){
+  const r=roster(g),m={};
+  r.forEach(x=>m[x.n]=x.on);
+  if(flip!==undefined)m[flip]=!m[flip];
+  else{const all=r.every(x=>x.on);r.forEach(x=>m[x.n]=!all);}
+  return m;
+}
+async function pushMembers(g,members){
+  g.member_arrived=members;saveCache();render();
+  const body={event,guest_id:g.id,members};
+  if(navigator.onLine){
+    try{await api('/api/member',{method:'POST',body});return;}catch(e){}
+  }
+  qpush({t:'member',...body});saveQueue();updateQueueN();
+}
+// кнопка «Отметить группу»: билет + все члены разом (или снять все)
+async function checkGroup(g){
+  const on=!g.arrived_at,m={};
+  roster(g).forEach(x=>m[x.n]=on);
+  await pushMembers(g,m);
+  tap(g);
+}
+// countLine: в виде участников — люди, в виде групп — все билеты
+// (соло + капитаны команд), плюс метрики средних по тру-группам
 function countLine(){
   const pct=(a,n)=>n?'('+Math.round(a/n*100)+'%)':'';
+  const met=document.getElementById('metLine');
   if(viewMode==='groups'){
-    const t=guests.filter(g=>g.team),ta=t.filter(g=>g.arrived_at).length;
-    return 'групп: пришло <b>'+ta+'</b> / '+t.length+' '+pct(ta,t.length);
+    const teams=guests.filter(isTeam),ta=guests.filter(g=>g.arrived_at).length;
+    const solos=guests.length-teams.length;
+    const sizes=teams.map(g=>Math.max(1,(g.members||[]).length));
+    const arrs=teams.map(g=>roster(g).filter(x=>x.on).length);
+    const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
+    const as=mean(sizes),aa=mean(arrs);
+    if(teams.length){
+      met.innerHTML='в среднем в тру-группе: '+as.toFixed(1)+' чел · пришло '+aa.toFixed(1)+' ('+(as?Math.round(aa/as*100):0)+'%)';
+      met.style.display='';
+    }else met.style.display='none';
+    return 'групп: пришло <b>'+ta+'</b> / '+guests.length+' '+pct(ta,guests.length)+' · сольных: '+solos+' · командных: '+teams.length;
   }
+  met.style.display='none';
   const people=gs=>gs.reduce((s,g)=>s+Math.max(1,(g.members||[]).length),0);
   const a=people(guests.filter(g=>g.arrived_at)),n=people(guests);
   return 'участников: пришло <b>'+a+'</b> / '+n+' '+pct(a,n);
@@ -426,14 +472,23 @@ function render(){
   for(let i=0;i<gs.length;i++){
     const g=gs[i];
     const row=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
-    if(viewMode==='groups'&&g.team){
-      const mem=g.members||[];
+    if(viewMode==='groups'){
+      const team=isTeam(g);
       const open=expanded.has(g.id);
-      let roster='';
+      const r=roster(g);
+      let body='';
       if(open){
-        roster=`<div class="mlist">${mem.length?mem.map(m=>`<div class="mem">${esc(m)}</div>`).join(''):'<div class="mem">состав не указан</div>'}<button class="gbtn" data-check="${i}">${g.arrived_at?'Снять отметку':'Отметить группу'}</button></div>`;
+        const rows=r.map((x,mi)=>`<div class="mem${x.on?' in':''}"${team?` data-mem="${mi}" data-mi="${i}"`:''}>${x.on?'✓ ':''}${esc(x.n)}</div>`).join('');
+        const btn=team
+          ?`<button class="gbtn" data-grp="${i}">${g.arrived_at?'Снять отметку':'Отметить группу'}</button>`
+          :`<button class="gbtn" data-solo="${i}">${g.arrived_at?'Снять отметку':'Отметить'}</button>`;
+        body=`<div class="mlist">${rows}${btn}</div>`;
       }
-      html+=`<div class="grp"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.team)}<div class="sub">Капитан: ${esc(g.name)}${mem.length?' · '+mem.length+' чел.':(g.ticket_type?' · '+esc(g.ticket_type):'')}</div></div><span class="chev">${open?'▾':'▸'}</span></div>${roster}</div>`;
+      const title=team?(g.team||g.name):g.name;
+      const sub=team
+        ?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':(g.ticket_type?' · '+esc(g.ticket_type):'')}`
+        :`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
+      html+=`<div class="grp"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev">${open?'▾':'▸'}</span></div>${body}</div>`;
     }else{
       html+=row;
     }
@@ -469,6 +524,7 @@ async function flushQueue(){
       if(item.t==='undo')await api('/api/undo',{method:'POST',body:{event:item.event,guest_id:item.guest_id}});
       if(item.t==='add')await api('/api/guest',{method:'POST',body:item.payload});
       if(item.t==='qrmiss')await api('/api/qrmiss',{method:'POST',body:{event:item.event,code:item.code}});
+      if(item.t==='member')await api('/api/member',{method:'POST',body:{event:item.event,guest_id:item.guest_id,members:item.members}});
     }catch(e){queue.push(item);}
   }
   saveQueue();
@@ -778,8 +834,17 @@ function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getEle
 loadVer();
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
 document.getElementById('list').addEventListener('click',e=>{
-  const cb=e.target.closest('[data-check]');
-  if(cb&&viewG[+cb.dataset.check]){tap(viewG[+cb.dataset.check]);return;}
+  const mg=e.target.closest('[data-mem]');
+  if(mg){
+    const g=viewG[+mg.dataset.mi];
+    const x=g&&roster(g)[+mg.dataset.mem];
+    if(x)pushMembers(g,memberSnap(g,x.n));
+    return;
+  }
+  const gb=e.target.closest('[data-grp]');
+  if(gb){checkGroup(viewG[+gb.dataset.grp]);return;}
+  const sb=e.target.closest('[data-solo]');
+  if(sb){tap(viewG[+sb.dataset.solo]);return;}
   const r=e.target.closest('.row');
   if(!r||!viewG[+r.dataset.i])return;
   const g=viewG[+r.dataset.i];
