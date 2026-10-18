@@ -107,13 +107,18 @@ func TestSplitMembers(t *testing.T) {
 		want int
 	}{
 		{"Маршенко Кристиан Евгеньевна Платонова Наталья ПавловнаИванов Геннадий ИгоревичВиролайнен Алина Андреевна", 4},
+		{"Севастьянова Мария Кочергина Светлана Тучина Елена Фалеева Елена", 4},
 		{"Только я :(", 1},
 		{"Иванов Пётр", 1},
 	}
 	for _, c := range cases {
-		if got := len(splitMembers(c.in)); got != c.want {
-			t.Errorf("splitMembers(%q) = %d parts, want %d", c.in, got, c.want)
+		got := splitMembers(c.in)
+		if len(got) != c.want {
+			t.Errorf("splitMembers(%q) = %d parts, want %d: %q", c.in, len(got), c.want, got)
 		}
+	}
+	if g := splitMembers("Севастьянова Мария Кочергина Светлана"); len(g) == 2 && (g[0] != "Севастьянова Мария" || g[1] != "Кочергина Светлана") {
+		t.Errorf("pairs split wrong: %q", g)
 	}
 }
 

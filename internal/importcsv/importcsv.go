@@ -236,7 +236,19 @@ func splitMembers(s string) []string {
 	chunks = append(chunks, s[last:])
 	var out []string
 	for _, ch := range chunks {
-		out = append(out, splitGlued(ch)...)
+		segs := splitGlued(ch)
+		for _, seg := range segs {
+			w := strings.Fields(seg)
+			// ФИО без отчеств («Севастьянова Мария Кочергина Светлана...»):
+			// граница ни склейкой, ни отчеством не поймать — режем по два слова
+			if len(segs) == 1 && len(w) >= 4 && len(w)%2 == 0 && !reAfterOtchestvo.MatchString(seg) {
+				for i := 0; i < len(w); i += 2 {
+					out = append(out, w[i]+" "+w[i+1])
+				}
+				continue
+			}
+			out = append(out, seg)
+		}
 	}
 	return out
 }
