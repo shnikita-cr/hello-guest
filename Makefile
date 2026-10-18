@@ -1,4 +1,4 @@
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed -E 's/-[0-9]+-g[0-9a-f]+//;s/^$$/dev/')
 LDFLAGS = -s -w -X main.version=$(VERSION)
 OUT = dist
 HOSTOS = $(shell uname -s | tr '[:upper:]' '[:lower:]')

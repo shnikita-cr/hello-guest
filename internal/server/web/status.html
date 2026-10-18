@@ -43,7 +43,7 @@ button:disabled{opacity:.5}
 <body>
 <div class="wrap">
   <div id="offlineBarS" class="offline hide">нет связи с сервисом</div>
-  <h1>👋 Hello Guest <span class="heart" id="heart" style="margin-left:auto">❤️</span></h1>
+  <h1><span id="hTitle">Hello Guest - Status</span> <span class="heart" id="heart" style="margin-left:auto">❤️</span></h1>
 
   <div class="grid">
   <div class="card">
@@ -119,6 +119,7 @@ async function poll() {
           + (e.kind === 'join' ? 'подключился' : 'вышел из сети') + '</li>').join('')
       : '<li class="mut">событий не было</li>';
     document.title = '⚙️ Hello Guest - Status · ' + ver;
+    $('hTitle').textContent = 'Hello Guest - Status · ' + ver;
     const h = Math.floor(s.uptime / 3600), m = Math.floor(s.uptime % 3600 / 60);
     const ver = 'v' + s.version;
     $('meta').textContent = ver + ' · uptime ' + (h ? h + ' ч ' : '') + m + ' мин';

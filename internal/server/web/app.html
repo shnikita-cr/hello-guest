@@ -57,7 +57,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 
 <div id="pinScreen" class="pinwrap">
   <div id="offlineBar7" class="offline hide" style="position:fixed;top:0;left:0;right:0;z-index:40">нет связи, <span id="queueN7">0</span> в очереди</div>
-  <h1>Hello Guest <span id="liveDot7" class="dot">❤️</span></h1>
+  <h1>Hello Guest <span id="hgVer"></span> <span id="liveDot7" class="dot">❤️</span></h1>
   <input id="pinInput" type="tel" inputmode="numeric" maxlength="6" placeholder="PIN">
   <button class="primary" onclick="submitPin()">Войти</button>
   <div id="pinErr" class="err"></div>
@@ -738,7 +738,7 @@ async function openStats(){
 
 window.addEventListener('online',()=>{flushQueue();refresh();});
 // мгновенная реакция на потерю сети на любой открытой странице
-api('/api/version').then(d=>document.title='👋 Hello Guest · v'+d.version).catch(()=>{});
+api('/api/version').then(d=>{document.title='👋 Hello Guest · v'+d.version;document.getElementById('hgVer').textContent='· v'+d.version;}).catch(()=>{});
 window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>setLive(true)).catch(e=>setLive(e.message==='pin'));},2500);
