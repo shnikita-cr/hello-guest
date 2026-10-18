@@ -118,9 +118,9 @@ async function poll() {
           + (e.device ? ' · ' + e.device : '') + ' — '
           + (e.kind === 'join' ? 'подключился' : 'вышел из сети') + '</li>').join('')
       : '<li class="mut">событий не было</li>';
+    const ver = 'v' + s.version;
     $('hVer').textContent = ver;
     const h = Math.floor(s.uptime / 3600), m = Math.floor(s.uptime % 3600 / 60);
-    const ver = 'v' + s.version;
     $('meta').textContent = ver + ' · uptime ' + (h ? h + ' ч ' : '') + m + ' мин';
     $('ips').innerHTML = (s.ips && s.ips.length)
       ? s.ips.map(ip => '<li><a href="https://' + ip + ':8443">https://' + ip + ':8443</a></li>').join('')
