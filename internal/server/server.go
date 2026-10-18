@@ -101,7 +101,16 @@ type Server struct {
 
 	seenMu  sync.Mutex
 	seen    map[string]time.Time
+	events  []clientEvent
 	started time.Time
+}
+
+// clientEvent: устройство подключилось или вышло из сети (по опросам страниц).
+type clientEvent struct {
+	Kind string `json:"kind"` // join | leave
+	IP   string `json:"ip"`
+	At   string `json:"at"` // HH:MM:SS
+	at   time.Time
 }
 
 // Version выставляется из cmd приложения (git describe).
@@ -174,8 +183,21 @@ func (s *Server) touch(r *http.Request) {
 		return
 	}
 	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+	_, existed := s.seen[host]
 	s.seen[host] = time.Now()
-	s.seenMu.Unlock()
+	if !existed {
+		s.pushEventLocked(clientEvent{Kind: "join", IP: host, At: nowHM(), at: time.Now()})
+	}
+}
+
+func nowHM() string { return time.Now().Format("15:04:05") }
+
+func (s *Server) pushEventLocked(e clientEvent) {
+	s.events = append(s.events, e)
+	if len(s.events) > 12 {
+		s.events = s.events[len(s.events)-12:]
+	}
 }
 
 func (s *Server) clients() int {
@@ -183,13 +205,34 @@ func (s *Server) clients() int {
 	defer s.seenMu.Unlock()
 	n := 0
 	for ip, t := range s.seen {
-		if time.Since(t) > 10*time.Second {
+		since := time.Since(t)
+		if since > 10*time.Second {
 			delete(s.seen, ip)
+			// ушедший недавно — показываем; старые хвосты при открытии
+			// страницы молча выкидываем, чтобы не флудить историей
+			if since <= 5*time.Minute {
+				s.pushEventLocked(clientEvent{Kind: "leave", IP: ip,
+					At: t.Add(10 * time.Second).Format("15:04:05"), at: t.Add(10 * time.Second)})
+			}
 			continue
 		}
 		n++
 	}
 	return n
+}
+
+// clientEvents: свежие события за 15 минут, новые сверху.
+func (s *Server) clientEvents() []clientEvent {
+	s.seenMu.Lock()
+	defer s.seenMu.Unlock()
+	out := make([]clientEvent, 0, len(s.events))
+	cut := time.Now().Add(-15 * time.Minute)
+	for i := len(s.events) - 1; i >= 0; i-- {
+		if s.events[i].at.After(cut) {
+			out = append(out, s.events[i])
+		}
+	}
+	return out
 }
 
 func (s *Server) authed(h http.HandlerFunc) http.HandlerFunc {
@@ -229,6 +272,7 @@ func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {
 		"pin":     s.cfg.PinPlain,
 		"uptime":  int(time.Since(s.started).Seconds()),
 		"backup":  s.TriggerBackup != nil,
+		"events":  s.clientEvents(),
 	})
 }
 
