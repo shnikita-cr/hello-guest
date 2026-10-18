@@ -114,7 +114,8 @@ async function poll() {
     heart(true);
     $('clients').textContent = s.clients;
     $('events').innerHTML = (s.events && s.events.length)
-      ? s.events.map(e => '<li class="mut">' + e.at + ' · ' + e.ip + ' — '
+      ? s.events.map(e => '<li class="mut">' + e.at + ' · ' + e.ip
+          + (e.device ? ' · ' + e.device : '') + ' — '
           + (e.kind === 'join' ? 'подключился' : 'вышел из сети') + '</li>').join('')
       : '<li class="mut">событий не было</li>';
     const h = Math.floor(s.uptime / 3600), m = Math.floor(s.uptime % 3600 / 60);

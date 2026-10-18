@@ -197,7 +197,7 @@ async function api(path,opt={}){
 
 async function submitPin(){
   pin=document.getElementById('pinInput').value.trim();
-  try{await api('/api/pin');localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();}
+  try{await api('/api/pin?device='+deviceName());localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();}
   catch(e){
     // офлайн: сервер недоступен (не «неверный PIN») — сверяем с сохранённым
     if(e.message!=='pin'&&localStorage.getItem('hg_pin')===pin){
@@ -242,7 +242,7 @@ function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
 async function boot(){
   renderTabs();
   if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
-  try{await api('/api/pin');}
+  try{await api('/api/pin?device='+deviceName());}
   catch(e){
     if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();document.getElementById('pinScreen').classList.remove('hide');return;}
     // нет связи — работаем с кэшем
@@ -739,7 +739,7 @@ window.addEventListener('online',()=>{flushQueue();refresh();});
 // мгновенная реакция на потерю сети на любой открытой странице
 window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
-setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>setLive(true)).catch(e=>setLive(e.message==='pin'));},2500);
+setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin?device='+deviceName()).then(()=>setLive(true)).catch(e=>setLive(e.message==='pin'));},2500);
 document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
 // service worker: при потере сети страница переживает свайп-обновление и F5
