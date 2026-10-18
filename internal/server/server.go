@@ -156,7 +156,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/status", s.local(s.handleStatusPage))
 	s.mux.HandleFunc("/reset", s.handleReset)
 	s.mux.HandleFunc("/api/status", s.local(s.handleStatusAPI))
-	s.mux.HandleFunc("/api/status/pin", s.local(s.handleStatusPin))
 	s.mux.HandleFunc("/api/admin/backup", s.local(s.handleBackupNow))
 	s.mux.HandleFunc("/api/admin/stop", s.local(s.handleStop))
 	s.mux.HandleFunc("/api/admin/restart", s.local(s.handleRestart))
@@ -288,7 +287,6 @@ func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {
 		"version": Version,
 		"clients": s.clients(),
 		"ips":     s.StatusIPs,
-		"pin":     s.cfg.PinPlain,
 		"uptime":  int(time.Since(s.started).Seconds()),
 		"backup":  s.TriggerBackup != nil,
 		"backup_auto": func() string {
@@ -321,29 +319,6 @@ func requirePost(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	return true
-}
-
-func (s *Server) handleStatusPin(w http.ResponseWriter, r *http.Request) {
-	if !requirePost(w, r) {
-		return
-	}
-	var body struct {
-		Pin string `json:"pin"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Pin == "" {
-		writeErr(w, http.StatusBadRequest, "bad body")
-		return
-	}
-	if !s.cfg.Check(body.Pin) {
-		writeErr(w, http.StatusBadRequest, "неверный pin")
-		return
-	}
-	s.cfg.PinPlain = body.Pin
-	if err := s.cfg.save(s.dataDir); err != nil {
-		writeErr(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleBackupNow(w http.ResponseWriter, r *http.Request) {

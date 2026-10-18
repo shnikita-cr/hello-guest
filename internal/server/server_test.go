@@ -115,17 +115,17 @@ func TestStatusLocalOnly(t *testing.T) {
 		t.Fatalf("tunnel must be 403, got %d", rrT.Code)
 	}
 
-	// сам ноутбук — PIN виден
+	// сам ноутбук — 200
 	reqL := httptest.NewRequest("GET", "/api/status", nil)
 	reqL.RemoteAddr = "127.0.0.1:4444"
 	rrL := httptest.NewRecorder()
 	s.Handler().ServeHTTP(rrL, reqL)
-	if rrL.Code != 200 || !strings.Contains(rrL.Body.String(), `"pin":"123456"`) {
+	if rrL.Code != 200 {
 		t.Fatalf("local: code=%d body=%s", rrL.Code, rrL.Body.String())
 	}
 }
 
-func TestStatusBackupAndPin(t *testing.T) {
+func TestStatusBackup(t *testing.T) {
 	dir := t.TempDir()
 	st, err := store.Open(filepath.Join(dir, "j.ndjson"))
 	if err != nil {
@@ -148,17 +148,6 @@ func TestStatusBackupAndPin(t *testing.T) {
 	s.TriggerBackup = func() (string, error) { return "/tmp/a.zip", nil }
 	if rr := post("/api/admin/backup", ""); rr.Code != 200 || !strings.Contains(rr.Body.String(), "/tmp/a.zip") {
 		t.Fatalf("backup: code=%d body=%s", rr.Code, rr.Body.String())
-	}
-
-	if rr := post("/api/status/pin", `{"pin":"000000"}`); rr.Code != http.StatusBadRequest {
-		t.Fatalf("wrong pin must be 400, got %d", rr.Code)
-	}
-	if rr := post("/api/status/pin", `{"pin":"123456"}`); rr.Code != 200 {
-		t.Fatalf("pin save: code=%d body=%s", rr.Code, rr.Body.String())
-	}
-	c, _, err := LoadOrCreateConfig(dir)
-	if err != nil || c.PinPlain != "123456" {
-		t.Fatalf("pin_plain not saved: err=%v", err)
 	}
 }
 
