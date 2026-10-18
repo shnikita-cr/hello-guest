@@ -67,7 +67,7 @@ jobs:
           if [ -n "$PREV" ]; then
             NOTES="$NOTES
 
-          $(git log --pretty=format:'- %s' $PREV..HEAD | grep -v '^- release')"
+          $(git log --pretty=format:'- %s' $PREV..HEAD | grep -v '^- release' || true)"
           fi
           git tag "$TAG"
           git push origin "$TAG"
