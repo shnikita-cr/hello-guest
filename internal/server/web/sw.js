@@ -1,5 +1,5 @@
 ///offline-оболочка: при потере сети страница и сканер продолжают работать
-const C = 'hg-v1';
+const C = 'hg-v2';
 const CORE = ['/', '/jsQR.js', '/zxing.js'];
 
 self.addEventListener('install', e => {
@@ -17,6 +17,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const r = e.request;
   if (r.method !== 'GET') return; // POST-запросы (API) мимо кэша
+  if (new URL(r.url).pathname === '/reset') return; // сброс — всегда напрямую по сети
   const same = new URL(r.url).origin === location.origin;
   if (r.mode === 'navigate') {
     // свежая версия при сети, кэш — при её отсутствии (свайп-обновление тоже)
