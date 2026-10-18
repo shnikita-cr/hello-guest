@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👨‍💻</text></svg>">
-<title>Hello Guest — админ</title>
+<title>👋 Hello Guest - Admin</title>
 <style>
 :root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--warn:#e67e22;--err:#e74c3c;--acc:#3b82f6}
 *{box-sizing:border-box}
@@ -29,19 +29,23 @@ h2{font-size:16px;margin:24px 0 8px}
 .miss{color:var(--err)}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+
+@keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.28)}28%{transform:scale(1)}42%{transform:scale(1.18)}56%{transform:scale(1)}}
+.dot{display:inline-block;font-size:16px;line-height:1;user-select:none;animation:beat 1s ease-in-out infinite}
+.dot.bad{animation-duration:.5s}
 </style>
 </head>
 <body>
 
 <div id="pinScreen" class="pinwrap">
-  <h1>Hello Guest — админ</h1>
+  <h1>👋 Hello Guest - Admin <span id="admHeart2" class="dot">❤️</span></h1>
   <input id="pinInput" type="tel" inputmode="numeric" maxlength="6" placeholder="PIN">
   <button class="primary" onclick="submitPin()">Войти</button>
   <div id="pinErr" class="err"></div>
 </div>
 
 <div id="adm" class="hide wrap">
-  <h1>Админ <span id="ver" style="font-size:14px;color:var(--mut);font-weight:400"></span></h1>
+  <h1>Админ <span id="ver" style="font-size:14px;color:var(--mut);font-weight:400"></span> <span id="admHeart" class="dot">❤️</span></h1>
   <div id="net" class="mut"></div>
 
   <h2>Отчёт регистраций</h2>
@@ -162,6 +166,24 @@ document.getElementById('ev').addEventListener('change',e=>localStorage.setItem(
   try{await api('/api/pin');start();}
   catch(e){document.getElementById('pinScreen').classList.remove('hide');}
 })();
+
+function admLive(ok){
+  ['admHeart','admHeart2'].forEach(id=>{
+    const h=document.getElementById(id);if(!h)return;
+    h.textContent=ok?'❤️':'💙';
+    h.classList.toggle('bad',!ok);
+  });
+  const n=document.getElementById('net');
+  if(!ok){n.textContent='Нет связи с сервером';}
+  else if(n.textContent==='Нет связи с сервером'){n.textContent='';}
+}
+async function admPoll(){
+  if(!navigator.onLine)return admLive(false);
+  try{await fetch('/api/version',{cache:'no-store'});admLive(true);}catch{admLive(false);}
+}
+setInterval(admPoll,2500);admPoll();
+window.addEventListener('offline',()=>admLive(false));
+window.addEventListener('online',admPoll);
 </script>
 </body>
 </html>
