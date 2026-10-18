@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>👋 Hello Guest</title>
+<title>Hello Guest</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👋</text></svg>">
 <style>
 :root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--warn:#e67e22;--err:#e74c3c;--acc:#3b82f6}
@@ -57,7 +57,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 
 <div id="pinScreen" class="pinwrap">
   <div id="offlineBar7" class="offline hide" style="position:fixed;top:0;left:0;right:0;z-index:40">нет связи, <span id="queueN7">0</span> в очереди</div>
-  <h1>Hello Guest <span id="hgVer"></span> <span id="liveDot7" class="dot">❤️</span></h1>
+  <h1 style="width:100%;max-width:340px;display:flex;align-items:center"><span>👋 Hello Guest</span><span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span id="hgVer" style="font-size:14px;color:var(--mut);font-weight:400"></span><span id="liveDot7" class="dot">❤️</span></span></h1>
   <input id="pinInput" type="tel" inputmode="numeric" maxlength="6" placeholder="PIN">
   <button class="primary" onclick="submitPin()">Войти</button>
   <div id="pinErr" class="err"></div>
@@ -738,7 +738,7 @@ async function openStats(){
 
 window.addEventListener('online',()=>{flushQueue();refresh();});
 // мгновенная реакция на потерю сети на любой открытой странице
-api('/api/version').then(d=>{document.title='👋 Hello Guest · v'+d.version;document.getElementById('hgVer').textContent='· v'+d.version;}).catch(()=>{});
+api('/api/version').then(d=>{document.getElementById('hgVer').textContent='v'+d.version;}).catch(()=>{});
 window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>setLive(true)).catch(e=>setLive(e.message==='pin'));},2500);
