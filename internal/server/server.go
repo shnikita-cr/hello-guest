@@ -100,17 +100,24 @@ type Server struct {
 	OnRestart     func()
 
 	seenMu  sync.Mutex
-	seen    map[string]time.Time
+	seen    map[string]seenInfo
 	events  []clientEvent
 	started time.Time
 }
 
 // clientEvent: устройство подключилось или вышло из сети (по опросам страниц).
 type clientEvent struct {
-	Kind string `json:"kind"` // join | leave
-	IP   string `json:"ip"`
-	At   string `json:"at"` // HH:MM:SS
-	at   time.Time
+	Kind   string `json:"kind"` // join | leave
+	IP     string `json:"ip"`
+	Device string `json:"device,omitempty"` // код устройства клиента (hg_dev)
+	At     string `json:"at"`               // HH:MM:SS
+	at     time.Time
+}
+
+// seenInfo: последний опрос клиента и его код устройства.
+type seenInfo struct {
+	at  time.Time
+	dev string
 }
 
 // Version выставляется из cmd приложения (git describe).
@@ -118,7 +125,7 @@ var Version = "dev"
 
 func New(cfg *Config, st *store.Store, dataDir string) *Server {
 	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux(), now: time.Now, dataDir: dataDir,
-		seen: map[string]time.Time{}, started: time.Now()}
+		seen: map[string]seenInfo{}, started: time.Now()}
 	s.routes()
 	return s
 }
@@ -182,12 +189,17 @@ func (s *Server) touch(r *http.Request) {
 	if ip := net.ParseIP(host); ip == nil || ip.IsLoopback() {
 		return
 	}
+	dev := r.URL.Query().Get("device")
 	s.seenMu.Lock()
 	defer s.seenMu.Unlock()
-	_, existed := s.seen[host]
-	s.seen[host] = time.Now()
+	prev, existed := s.seen[host]
+	if dev != "" {
+		prev.dev = dev // не затираем код пустым опросом
+	}
+	prev.at = time.Now()
+	s.seen[host] = prev
 	if !existed {
-		s.pushEventLocked(clientEvent{Kind: "join", IP: host, At: nowHM(), at: time.Now()})
+		s.pushEventLocked(clientEvent{Kind: "join", IP: host, Device: prev.dev, At: nowHM(), at: time.Now()})
 	}
 }
 
@@ -204,15 +216,15 @@ func (s *Server) clients() int {
 	s.seenMu.Lock()
 	defer s.seenMu.Unlock()
 	n := 0
-	for ip, t := range s.seen {
-		since := time.Since(t)
+	for ip, v := range s.seen {
+		since := time.Since(v.at)
 		if since > 10*time.Second {
 			delete(s.seen, ip)
 			// ушедший недавно — показываем; старые хвосты при открытии
 			// страницы молча выкидываем, чтобы не флудить историей
 			if since <= 5*time.Minute {
-				s.pushEventLocked(clientEvent{Kind: "leave", IP: ip,
-					At: t.Add(10 * time.Second).Format("15:04:05"), at: t.Add(10 * time.Second)})
+				s.pushEventLocked(clientEvent{Kind: "leave", IP: ip, Device: v.dev,
+					At: v.at.Add(10 * time.Second).Format("15:04:05"), at: v.at.Add(10 * time.Second)})
 			}
 			continue
 		}
