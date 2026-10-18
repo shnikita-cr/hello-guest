@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hello Guest - Status</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
+<style>
+:root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--err:#e74c3c;--acc:#3b82f6}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.45 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+.wrap{max-width:920px;margin:0 auto;padding:10px 12px 18px}
+h1{font-size:18px;margin:2px 0 10px;display:flex;gap:10px;align-items:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start}
+.card{background:var(--card);border-radius:14px;padding:12px 14px}
+.card.span{grid-column:1/-1}
+.label{font-size:13px;color:var(--mut);margin-bottom:4px}
+.big{font-size:20px;font-weight:600}
+@media (max-width:720px){.grid{grid-template-columns:1fr}}
+.mut{color:var(--mut);font-size:14px}
+.heart{display:inline-block;transform-origin:center;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;animation:beat 1s ease-in-out infinite}
+.heart.off{animation-duration:.5s}
+@keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.28)}28%{transform:scale(1)}42%{transform:scale(1.18)}56%{transform:scale(1)}}
+.state{display:flex;gap:10px;align-items:center;font-size:16px}
+.state .dot{width:12px;height:12px;border-radius:50%;background:#ff2525;flex:none}
+.state.down .dot{background:var(--acc)}
+ul.ips{list-style:none;margin:6px 0 0;padding:0}
+ul.ips li{margin:3px 0}
+#events li{font-size:13px}
+a{color:var(--acc);word-break:break-all}
+.pin{font:600 26px/1 ui-monospace,monospace;letter-spacing:4px}
+form{display:flex;gap:8px;margin-top:8px}
+input{font:inherit;flex:1;min-width:0;padding:10px;border-radius:12px;border:1px solid #2a313a;background:#12161b;color:var(--fg);min-height:40px}
+button{font:inherit;border:0;border-radius:12px;padding:10px 16px;background:var(--acc);color:#fff;cursor:pointer;min-height:40px}
+button:disabled{opacity:.5}
+.msg{margin-top:6px;font-size:14px}
+.offline{background:var(--warn);color:#000;text-align:center;padding:6px;font-size:13px;border-radius:8px;margin:-10px -12px 8px}
+.hide{display:none}
+.msg.err{color:var(--err)}
+.msg.ok{color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="offlineBarS" class="offline hide">нет связи с сервисом</div>
+  <h1><span>⚙️ Hello Guest - Status</span><span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span id="hVer" style="font-size:14px;color:var(--mut);font-weight:400"></span><span class="heart" id="heart">❤️</span></span></h1>
+
+  <div class="grid">
+  <div class="card">
+    <div class="label">Сервис</div>
+    <div class="state" id="state"><span class="dot"></span><span id="stateText">работает</span></div>
+    <div class="mut" id="meta" style="margin-top:6px">—</div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="restartBtn" style="flex:1;background:#2a313a;color:var(--fg)">Перезапустить</button>
+      <button id="stopBtn" style="flex:1;background:#3a2320;color:#ff9d94">Остановить</button>
+    </div>
+    <div class="msg" id="lifeMsg"></div>
+  </div>
+
+  <div class="card">
+    <div class="label">Клиентов онлайн</div>
+    <div class="big" id="clients">—</div>
+    <div class="mut">устройства с открытой страницей, последние 10 секунд</div>
+    <div class="label" style="margin-top:10px">Последние события</div>
+    <ul class="ips" id="events"><li class="mut">—</li></ul>
+  </div>
+
+  <div class="card">
+    <div class="label">Доступен по</div>
+    <ul class="ips" id="ips"><li class="mut">—</li></ul>
+  </div>
+
+  <div class="card" id="pinCard">
+    <div class="label">PIN админ-панели</div>
+    <div class="pin" id="pinValue">••••••</div>
+    <form id="pinForm" hidden>
+      <input id="pinInput" inputmode="numeric" autocomplete="off" placeholder="введите PIN">
+      <button>Запомнить</button>
+    </form>
+    <div class="msg" id="pinMsg"></div>
+  </div>
+
+  <div class="card span">
+    <div class="label">Резервная копия</div>
+    <div class="mut" id="bakAuto">авто: —</div>
+    <div class="mut" id="bakManual">вручную: —</div>
+    <button id="bakBtn" style="width:100%">Создать дополнительный ручной бэкап</button>
+    <div class="msg" id="bakMsg"></div>
+  </div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+
+function heart(ok) {
+  const h = $('heart');
+  h.textContent = ok ? '❤️' : '💙';
+  h.classList.toggle('off', !ok);
+  $('offlineBarS').classList.toggle('hide', ok);
+}
+
+function down() {
+  $('state').classList.add('down');
+  $('stateText').textContent = 'нет связи с сервисом';
+  $('meta').textContent = '';
+  $('clients').textContent = '—';
+  heart(false);
+}
+
+async function poll() {
+  if (!navigator.onLine) return down();
+  try {
+    const s = await (await fetch('/api/status', {cache: 'no-store'})).json();
+    $('state').classList.remove('down');
+    $('stateText').textContent = 'работает';
+    heart(true);
+    $('clients').textContent = s.clients;
+    $('events').innerHTML = (s.events && s.events.length)
+      ? s.events.map(e => '<li class="mut">' + e.at + ' · ' + e.ip
+          + (e.device ? ' · ' + e.device : '') + ' — '
+          + (e.kind === 'join' ? 'подключился' : 'вышел из сети') + '</li>').join('')
+      : '<li class="mut">событий не было</li>';
+    const ver = 'v' + s.version;
+    $('hVer').textContent = ver;
+    const h = Math.floor(s.uptime / 3600), m = Math.floor(s.uptime % 3600 / 60);
+    $('meta').textContent = ver + ' · uptime ' + (h ? h + ' ч ' : '') + m + ' мин';
+    $('ips').innerHTML = (s.ips && s.ips.length)
+      ? s.ips.map(ip => '<li><a href="https://' + ip + ':8443">https://' + ip + ':8443</a></li>').join('')
+      : '<li class="mut">нет подключённых сетей</li>';
+    $('bakAuto').textContent = 'авто: ' + (s.backup_auto || '—');
+    $('bakManual').textContent = 'вручную: ' + (s.backup_manual || '—');
+    if (s.pin) {
+      $('pinValue').textContent = s.pin;
+      $('pinValue').hidden = false;
+      $('pinForm').hidden = true;
+    } else {
+      $('pinValue').hidden = true;
+      $('pinForm').hidden = false;
+    }
+  } catch {
+    down();
+  }
+}
+setInterval(poll, 2500);
+poll();
+window.addEventListener('offline', down);
+window.addEventListener('online', poll);
+
+async function life(path, btn, text) {
+  if (path.endsWith('/stop') && !confirm('Остановить сервис?')) return;
+  btn.disabled = true;
+  const msg = $('lifeMsg');
+  msg.className = 'msg';
+  msg.textContent = text;
+  let r;
+  try {
+    r = await fetch(path, {method: 'POST'});
+  } catch {
+    msg.className = 'msg err'; msg.textContent = 'нет связи';
+    btn.disabled = false;
+    return;
+  }
+  if (!r.ok) {
+    let e = {};
+    try { e = await r.json(); } catch {}
+    msg.className = 'msg err';
+    msg.textContent = e.error || ('ошибка ' + r.status);
+    btn.disabled = false;
+    return;
+  }
+  if (path.endsWith('/restart')) {
+    for (let i = 0; i < 40; i++) {
+      await new Promise(res => setTimeout(res, 500));
+      try {
+        await fetch('/api/status', {cache: 'no-store'});
+        msg.className = 'msg ok';
+        msg.textContent = 'перезапущен';
+        btn.disabled = false;
+        return;
+      } catch {}
+    }
+    msg.className = 'msg err';
+    msg.textContent = 'не отвечает — загляните в лог';
+    btn.disabled = false;
+    return;
+  }
+  msg.className = 'msg';
+  msg.textContent = 'остановлен — запустите снова, когда понадобится';
+}
+$('restartBtn').addEventListener('click', () => life('/api/admin/restart', $('restartBtn'), 'перезапускаю…'));
+$('stopBtn').addEventListener('click', () => life('/api/admin/stop', $('stopBtn'), 'останавливаю…'));
+
+$('pinForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const r = await fetch('/api/status/pin', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pin: $('pinInput').value})
+  });
+  const msg = $('pinMsg');
+  if (r.ok) { msg.className = 'msg ok'; msg.textContent = 'PIN сохранён'; $('pinInput').value = ''; }
+  else { const e = await r.json().catch(() => ({})); msg.className = 'msg err'; msg.textContent = e.error || 'ошибка'; }
+  poll();
+});
+
+$('bakBtn').addEventListener('click', async () => {
+  const btn = $('bakBtn'), msg = $('bakMsg');
+  btn.disabled = true; msg.className = 'msg'; msg.textContent = 'создаю…';
+  try {
+    const r = await fetch('/api/admin/backup', {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { msg.className = 'msg err'; msg.textContent = d.error || 'ошибка'; }
+    else if (d.skipped) { msg.className = 'msg'; msg.textContent = 'нет изменений — архив не создавался'; }
+    else { msg.className = 'msg ok'; msg.textContent = 'архив: ' + d.file; }
+  } catch (e) { msg.className = 'msg err'; msg.textContent = 'нет связи'; }
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>

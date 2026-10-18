@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hello Guest</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👋</text></svg>">
+<style>
+:root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--warn:#e67e22;--err:#e74c3c;--acc:#3b82f6}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font:16px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+.hide{display:none!important}
+button{font:inherit;border:0;border-radius:12px;padding:14px 16px;background:var(--card);color:var(--fg);cursor:pointer;min-height:48px}
+button.primary{background:var(--acc);color:#fff;width:100%}
+button.ok{background:var(--ok);color:#fff}
+.top{display:flex;gap:8px;align-items:center;padding:12px;position:sticky;top:0;background:var(--bg);z-index:5}
+.top h1{font-size:18px;margin:0;flex:1}
+.count{font-size:14px;color:var(--mut);padding:0 12px 8px}
+.count b{color:var(--fg);font-size:20px}
+input,select{font:inherit;width:100%;padding:14px;border-radius:12px;border:1px solid #2a313a;background:var(--card);color:var(--fg);min-height:48px}
+input:focus,select:focus{outline:2px solid var(--acc)}
+.list{padding:0 12px 120px}
+.row{display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;background:var(--card);margin-bottom:8px;cursor:pointer;border:1px solid transparent}
+.row.arrived{border-color:var(--ok)}
+.row .nm{flex:1;font-weight:600}
+.row .sub{font-size:13px;color:var(--mut);font-weight:400}
+.row .mark{width:14px;height:14px;border-radius:50%;background:#2a313a}
+.row.arrived .mark{background:var(--ok)}
+.row.dup{border-color:var(--warn)}
+.pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
+.pane h2{margin:0 0 12px;font-size:20px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.stat{background:var(--card);border-radius:12px;padding:16px}
+.stat .v{font-size:28px;font-weight:700}
+.stat .l{font-size:13px;color:var(--mut)}
+.bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px}
+.bar .t{width:120px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .f{flex:1;height:20px;background:var(--card);border-radius:6px;overflow:hidden}
+.bar .f i{display:block;height:100%;background:var(--acc)}
+.tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid #2a313a}
+.tabs button{flex:1;border-radius:0;background:none;padding:12px}
+.tabs button.on{color:var(--acc);font-weight:700}
+.offline{background:var(--warn);color:#000;text-align:center;padding:6px;font-size:13px}
+.pinwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px 24px 80px}
+.pinwrap input{text-align:center;font-size:24px;letter-spacing:8px;max-width:240px}
+.err{color:var(--err);font-size:14px;min-height:20px}
+.row.muted{opacity:.55}
+button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:1px solid #3a424d}
+@keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.28)}28%{transform:scale(1)}42%{transform:scale(1.18)}56%{transform:scale(1)}}
+.dot{display:inline-block;font-size:18px;line-height:1;user-select:none;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;animation:beat 1s ease-in-out infinite}
+.dot.bad{animation-duration:.5s}
+</style>
+</head>
+<body>
+
+<div id="pinScreen" class="pinwrap">
+  <div id="offlineBar7" class="offline hide" style="position:fixed;top:0;left:0;right:0;z-index:40">нет связи, <span id="queueN7">0</span> в очереди</div>
+  <h1 style="width:100%;max-width:340px;display:flex;align-items:center"><span>👋 Hello Guest</span><span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span id="hgVer" style="font-size:14px;color:var(--mut);font-weight:400"></span><span id="liveDot7" class="dot">❤️</span></span></h1>
+  <input id="pinInput" type="tel" inputmode="numeric" maxlength="6" placeholder="PIN">
+  <button class="primary" onclick="submitPin()">Войти</button>
+  <div id="pinErr" class="err"></div>
+</div>
+
+<div class="tabs">
+  <button id="tabPin" onclick="showPin()">Вход</button>
+  <button class="on hide" id="tabList" onclick="showTab('list')">Список</button>
+  <button class="hide" id="tabAdd" onclick="openAdd()">+ Гость</button>
+  <button id="tabStats" onclick="openStats()">Статистика</button>
+  <button class="hide" id="tabSrc" onclick="openSrc()">Источники</button>
+</div>
+
+<div id="app" class="hide">
+  <div id="offlineBar" class="offline hide">нет связи, <span id="queueN">0</span> в очереди</div>
+  <div class="top">
+    <button onclick="pickEvent()">←</button>
+    <h1 id="evTitle"></h1>
+    <span id="hgVer2" style="font-size:13px;color:var(--mut);font-weight:400"></span>
+    <span id="liveDot" class="dot">❤️</span>
+  </div>
+  <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span> <span id="cPct" style="color:var(--mut)"></span></div>
+  <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
+  <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/Barcode</button>
+  <div id="list" class="list"></div>
+</div>
+
+<div id="eventPane" class="pane hide">
+  <div id="offlineBar2" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <h2 style="flex:1;margin:0">Мероприятия</h2>
+    <span id="hgVer3" style="font-size:13px;color:var(--mut);font-weight:400"></span>
+    <span id="liveDot2" class="dot">❤️</span>
+  </div>
+  <button class="primary" onclick="openSrc()" style="margin-bottom:12px">Загрузить выгрузку</button>
+  <div id="evList"></div>
+</div>
+
+<div id="addPane" class="pane hide">
+  <div id="offlineBar3" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN3">0</span> в очереди</div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Новый гость</h2><span id="liveDot4" class="dot">❤️</span></div>
+  <div class="field"><label>Имя *</label><input id="aName"></div>
+  <div class="field"><label>Телефон</label><input id="aPhone" type="tel"></div>
+  <div class="field"><label>Email</label><input id="aEmail" type="email"></div>
+  <div class="field"><label>Тип билета</label><input id="aType"></div>
+  <button class="primary" onclick="saveGuest(true)">Сохранить и отметить</button>
+  <button style="width:100%;margin-top:8px" onclick="saveGuest(false)">Сохранить без отметки</button>
+  <button style="width:100%;margin-top:8px" onclick="closePanes()">Отмена</button>
+  <div id="addErr" class="err"></div>
+</div>
+
+<div id="statsPane" class="pane hide">
+  <div id="offlineBar4" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN4">0</span> в очереди</div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Статистика</h2><span id="liveDot5" class="dot">❤️</span></div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="sArrived">0</div><div class="l">пришло</div></div>
+    <div class="stat"><div class="v" id="sTotal">0</div><div class="l">всего</div></div>
+    <div class="stat"><div class="v" id="sRate">—</div><div class="l">гостей/мин (10 мин)</div></div>
+    <div class="stat"><div class="v" id="sGap">—</div><div class="l">средний интервал</div></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="sQR">—</div><div class="l">отмечено по QR</div></div>
+    <div class="stat"><div class="v" id="sTap">—</div><div class="l">отмечено из списка</div></div>
+    <div class="stat"><div class="v" id="sWalk">—</div><div class="l">добавлено вручную</div></div>
+    <div class="stat"><div class="v" id="sMiss">—</div><div class="l">ложных QR</div></div>
+  </div>
+  <h2 style="font-size:16px">По типам билета</h2>
+  <div id="sTypes"></div>
+  <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
+</div>
+
+<div id="srcPane" class="pane hide">
+  <div id="offlineBar5" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN5">0</span> в очереди</div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Источники</h2><span id="liveDot6" class="dot">❤️</span></div>
+  <p style="color:var(--mut);font-size:14px">Импорт выгрузки Timepad (CSV или XLSX) или подтягивание через API в текущее мероприятие.</p>
+  <div class="field">
+    <label>Мероприятие (куда загружать)</label>
+    <input id="srcEvent" placeholder="напр. conf-2026">
+  </div>
+  <div class="field">
+    <label>Файл выгрузки CSV / XLSX</label>
+    <input id="srcFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+  </div>
+  <button class="primary" onclick="doImport()">Импортировать файл</button>
+  <h2 style="font-size:16px;margin-top:24px">Timepad API</h2>
+  <div class="field">
+    <label>ID события Timepad</label>
+    <input id="srcTpid" type="text" inputmode="numeric" pattern="[0-9]*">
+  </div>
+  <div class="field">
+    <label>Токен (или пусто — из TIMEPAD_TOKEN)</label>
+    <input id="srcToken" type="password">
+  </div>
+  <button class="primary" onclick="doRefresh()">Подтянуть из Timepad</button>
+  <div id="srcLog" class="err" style="color:var(--ok)"></div>
+  <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
+</div>
+
+<div id="qrFlash" class="hide" onclick="this.classList.add('hide')" style="position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center">
+  <div id="qrFlashIcon" style="font-size:72px;font-weight:800;line-height:1;color:#fff"></div>
+  <div id="qrFlashText" style="font-size:26px;font-weight:700;color:#fff"></div>
+  <div id="qrFlashSub" style="font-size:16px;color:#fff;opacity:.85"></div>
+</div>
+
+<div id="qrPane" class="pane hide" style="z-index:20;background:#000;inset:0">
+  <div id="offlineBar6" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN6">0</span> в очереди</div>
+  <div style="max-width:640px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:8px">
+      <h2 style="flex:1;margin:0">Сканер QR</h2>
+      <span id="liveDot3" class="dot">❤️</span>
+    </div>
+    <video id="qrVideo" autoplay playsinline muted style="width:100%;max-height:50vh;object-fit:cover;border-radius:12px;background:#111"></video>
+    <div id="qrMsg" style="font-size:18px;font-weight:700;min-height:28px;margin:12px 0"></div>
+    <div id="scanCount" style="font-size:16px;color:#d4ff00;font-weight:700;min-height:22px"></div>
+    <div style="font-size:14px;color:var(--mut)">Не читается с экрана — отодвиньте телефон гостя или попросите наклонить</div>
+    <p style="color:var(--mut);font-size:14px">Наведите камеру на QR-код или штрих-код билета Timepad. После отметки камера продолжит сканирование — можно приглашать следующего гостя.</p>
+    <button style="width:100%" onclick="stopScan()">Закрыть</button>
+  </div>
+</div>
+
+<script src="/jsQR.js"></script>
+<script src="/zxing.js"></script>
+<script>
+let pin=localStorage.getItem('hg_pin')||'';
+let event=localStorage.getItem('hg_event')||'';
+let guests=[];
+let queue=[];
+let timer=null;
+
+async function api(path,opt={}){
+  path+=(path.includes('?')?'&':'?')+'device='+deviceName();
+  const h=Object.assign({'X-Pin':pin},opt.headers||{});
+  const raw=opt.body instanceof ArrayBuffer||opt.body instanceof Blob||typeof opt.body==='string';
+  if(opt.body&&!raw){opt.body=JSON.stringify(opt.body);h['Content-Type']='application/json';}
+  const r=await fetch(path,Object.assign({},opt,{headers:h}));
+  if(r.status===401)throw new Error('pin');
+  if(!r.ok)throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
+  return r.json();
+}
+
+async function submitPin(){
+  pin=document.getElementById('pinInput').value.trim();
+  try{await api('/api/pin');localStorage.setItem('hg_pin',pin);document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();}
+  catch(e){
+    // офлайн: сервер недоступен (не «неверный PIN») — сверяем с сохранённым
+    if(e.message!=='pin'&&localStorage.getItem('hg_pin')===pin){
+      document.getElementById('pinScreen').classList.add('hide');renderTabs();boot();return;
+    }
+    document.getElementById('pinErr').textContent='Неверный PIN';
+  }
+}
+
+function renderTabs(){
+  const authed=!!localStorage.getItem('hg_pin');
+  document.getElementById('tabPin').classList.toggle('hide',authed);
+  document.getElementById('tabList').classList.toggle('hide',!authed);
+  document.getElementById('tabSrc').classList.toggle('hide',!authed);
+  updateTabAdd();
+}
+// «+ Гость» и «Статистика» — только внутри выбранного мероприятия
+function updateTabAdd(){
+  const on=!!localStorage.getItem('hg_pin')&&!!event&&screen==='app';
+  document.getElementById('tabAdd').classList.toggle('hide',!on);
+  document.getElementById('tabStats').classList.toggle('hide',!on);
+}
+
+function showPin(){
+  clearInterval(timer);
+  screen='pin';updateTabAdd();
+  setActiveTab('tabPin');
+  ['eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.add('hide'));
+  document.getElementById('app').classList.add('hide');
+  document.getElementById('pinScreen').classList.remove('hide');
+}
+
+function setActiveTab(id){['tabPin','tabList','tabAdd','tabStats','tabSrc'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));}
+function show(id){
+  screen=id;updateTabAdd();
+  ['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
+  setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
+}
+function showTab(){pickEvent();}
+function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
+
+async function boot(){
+  renderTabs();
+  if(!pin){document.getElementById('pinScreen').classList.remove('hide');return;}
+  try{await api('/api/pin');}
+  catch(e){
+    if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();document.getElementById('pinScreen').classList.remove('hide');return;}
+    // нет связи — работаем с кэшем
+    if(!localStorage.getItem('hg_pin')){document.getElementById('pinScreen').classList.remove('hide');return;}
+  }
+  document.getElementById('pinScreen').classList.add('hide');
+  loadQueue();
+  if(localStorage.getItem('hg_pick')){await pickEvent();return;}
+  if(!event){await pickEvent();return;}
+  await enterEvent(event);
+}
+
+function loadQueue(){try{queue=JSON.parse(localStorage.getItem('hg_queue')||'[]');}catch(e){queue=[];}}
+function saveQueue(){localStorage.setItem('hg_queue',JSON.stringify(queue));}
+function qpush(item){queue.push(item);saveQueue();}
+
+function loadCache(){try{guests=JSON.parse(localStorage.getItem('hg_cache_'+event)||'[]');}catch(e){guests=[];}}
+function saveCache(){
+  try{
+    localStorage.setItem('hg_cache_'+event,JSON.stringify(guests));
+    const l=cachedEvents().filter(x=>x!==event);l.unshift(event);
+    localStorage.setItem('hg_cached',JSON.stringify(l.slice(0,8)));
+  }catch(e){}
+}
+function cachedEvents(){try{return JSON.parse(localStorage.getItem('hg_cached')||'[]');}catch(e){return[];}}
+function cacheOf(ev){try{return JSON.parse(localStorage.getItem('hg_cache_'+ev)||'[]');}catch(e){return[];}}
+
+let showHidden=false;
+
+async function pickEvent(){
+  clearInterval(timer);
+  localStorage.setItem('hg_pick','1');
+  show('eventPane');
+  const el=document.getElementById('evList');
+  el.innerHTML='';
+  let evs;
+  try{evs=await api('/api/events');setLive(true);}
+  catch(e){
+    setLive(false);
+    let evs=cachedEvents();
+    if(!evs.length&&event&&localStorage.getItem('hg_cache_'+event))evs=[event];
+    if(!evs.length)return;
+    const t=document.createElement('p');
+    t.style.color='var(--mut)';t.textContent='Нет связи — из кэша:';
+    el.appendChild(t);
+    evs.forEach(ev=>{
+      const gs=cacheOf(ev);
+      const d=document.createElement('div');d.className='row';
+      d.innerHTML=`<div class="nm">${esc(ev)}<div class="sub">${gs.filter(g=>g.arrived_at).length}/${gs.length} пришло · из кэша</div></div>`;
+      d.onclick=()=>{event=ev;localStorage.setItem('hg_event',ev);enterEvent(ev);};
+      el.appendChild(d);
+    });
+    return;
+  }
+  if(!evs.length){el.innerHTML='<p style="color:var(--mut)">Нет мероприятий. Импортируйте выгрузку.</p>';return;}
+  const hid=evs.filter(e=>e.hidden);
+  let out=evs.filter(e=>!e.hidden);
+  if(hid.length){
+    const t=document.createElement('button');
+    t.style.width='100%';t.style.marginBottom='12px';
+    t.textContent=showHidden?`Скрыть скрытые (${hid.length})`:`Показать скрытые (${hid.length})`;
+    t.onclick=()=>{showHidden=!showHidden;pickEvent();};
+    el.appendChild(t);
+    if(showHidden)out=out.concat(hid);
+  }
+  out.forEach(e=>{
+    const d=document.createElement('div');d.className='row'+(e.hidden?' muted':'');
+    d.innerHTML=`<div class="nm">${esc(e.event)}<div class="sub">${e.arrived}/${e.total} пришло${e.hidden?' · скрыто':''}</div></div>`;
+    const b1=document.createElement('button');b1.className='mini';
+    b1.textContent=e.hidden?'↩':'✏';
+    b1.onclick=ev=>{ev.stopPropagation();e.hidden?toggleEventHidden(e.event,false):renameEvent(e.event);};
+    const b2=document.createElement('button');b2.className='mini';
+    b2.textContent=e.hidden?'':'👁';
+    b2.onclick=ev=>{ev.stopPropagation();toggleEventHidden(e.event,true);};
+    d.appendChild(b1);
+    if(!e.hidden)d.appendChild(b2);
+    d.onclick=()=>{event=e.event;localStorage.setItem('hg_event',event);enterEvent(event);};
+    el.appendChild(d);
+  });
+}
+
+async function renameEvent(old){
+  const n=prompt('Новое имя события',old);
+  if(n===null)return;
+  const nn=n.trim();
+  if(!nn||nn===old)return;
+  try{
+    await api('/api/event/rename',{method:'POST',body:{event:old,new:nn}});
+    if(event===old){event=nn;localStorage.setItem('hg_event',nn);}
+    pickEvent();
+  }catch(e){alert(e.message);}
+}
+
+async function toggleEventHidden(ev,h){
+  try{await api('/api/event/hide',{method:'POST',body:{event:ev,hidden:h}});pickEvent();}
+  catch(e){alert(e.message);}
+}
+
+async function enterEvent(ev){
+  localStorage.removeItem('hg_pick');
+  show('app');
+  document.getElementById('evTitle').textContent=ev;
+  loadCache();render();
+  await refresh();
+  clearInterval(timer);timer=setInterval(refresh,2500);
+}
+
+function setLive(ok){
+  ['liveDot','liveDot2','liveDot3','liveDot4','liveDot5','liveDot6','liveDot7'].forEach(id=>{
+    const d=document.getElementById(id);if(!d)return;
+    d.textContent=ok?'❤️':'💙';
+    d.classList.toggle('bad',!ok);
+  });
+  ['offlineBar','offlineBar2','offlineBar3','offlineBar4','offlineBar5','offlineBar6','offlineBar7'].forEach(id=>{
+    const b=document.getElementById(id);if(!b)return;
+    b.classList.toggle('hide',ok);
+  });
+  updateQueueN();
+}
+function updateQueueN(){['queueN','queueN2','queueN3','queueN4','queueN5','queueN6','queueN7'].forEach(id=>{const n=document.getElementById(id);if(n)n.textContent=queue.length;});}
+
+async function refresh(){
+  try{
+    await flushQueue(); // сначала отправляем отложенные действия, потом тянем состояние
+    const st=await api('/api/state?event='+encodeURIComponent(event));
+    guests=st.guests||[];
+    saveCache();
+    setLive(true);
+    clearInterval(timer);timer=setInterval(refresh,2500);
+    render();
+  }catch(e){
+    setLive(false);
+    clearInterval(timer);timer=setInterval(refresh,800);
+    render();
+  }
+}
+
+function q(){return document.getElementById('q').value.toLowerCase().trim();}
+function filtered(){
+  const s=q();
+  if(!s)return guests;
+  return guests.filter(g=>(g.name||'').toLowerCase().includes(s)||(g.email||'').toLowerCase().includes(s)||(g.phone||'').toLowerCase().includes(s)||(g.ticket_number||'').toLowerCase().includes(s)||(g.barcode||'').toLowerCase().includes(s));
+}
+
+let viewG=[];
+function render(){
+  updateScanCount();
+  const list=document.getElementById('list');
+  const gs=filtered();
+  gs.sort((a,b)=>((a.arrived_at?1:0)-(b.arrived_at?1:0))||((a.name||'')<(b.name||'')?-1:(a.name||'')>(b.name||'')?1:0));
+  viewG=gs;
+  const arrived=guests.filter(g=>g.arrived_at).length;
+  document.getElementById('cArrived').textContent=arrived;
+  document.getElementById('cTotal').textContent=guests.length;
+  document.getElementById('cPct').textContent=guests.length?'('+Math.round(arrived/guests.length*100)+'%)':'';
+  let html='';
+  for(let i=0;i<gs.length;i++){
+    const g=gs[i];
+    html+=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
+  }
+  list.innerHTML=html;
+}
+
+function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+
+async function tap(g){
+  if(g.arrived_at){
+    if(!confirm('Уже отмечен. Снять отметку?'))return;
+    qpush({t:'undo',event,guest_id:g.id});g.arrived_at='';
+  }else{
+    g.arrived_at=new Date().toISOString();
+    qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'tap'});
+  }
+  render();await flushQueue();
+}
+
+function deviceName(){
+  let d=localStorage.getItem('hg_dev');
+  if(!d){d='dev-'+Math.random().toString(36).slice(2,6);localStorage.setItem('hg_dev',d);}
+  return d;
+}
+
+async function flushQueue(){
+  if(!queue.length||!navigator.onLine)return;
+  const q2=queue.slice();queue=[];
+  for(const item of q2){
+    try{
+      if(item.t==='checkin')await api('/api/checkin',{method:'POST',body:{event:item.event,guest_id:item.guest_id,device:item.device,via:item.via||'tap'}});
+      if(item.t==='undo')await api('/api/undo',{method:'POST',body:{event:item.event,guest_id:item.guest_id}});
+      if(item.t==='add')await api('/api/guest',{method:'POST',body:item.payload});
+      if(item.t==='qrmiss')await api('/api/qrmiss',{method:'POST',body:{event:item.event,code:item.code}});
+    }catch(e){queue.push(item);}
+  }
+  saveQueue();
+  updateQueueN();
+}
+
+function openAdd(){show('addPane');document.getElementById('aName').focus();}
+
+let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrBlur=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
+
+const beeps={};
+function beepWav(freq,dur,vol){
+  const key=freq+':'+dur+':'+(vol||9);
+  if(beeps[key])return beeps[key];
+  const sr=8000,n=Math.round(sr*dur),buf=new ArrayBuffer(44+n*2),dv=new DataView(buf);
+  const s=(o,t)=>{for(let i=0;i<t.length;i++)dv.setUint8(o+i,t.charCodeAt(i));};
+  s(0,'RIFF');dv.setUint32(4,36+n*2,true);s(8,'WAVEfmt ');dv.setUint32(16,16,true);
+  dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,sr,true);
+  dv.setUint32(28,sr*2,true);dv.setUint16(32,2,true);dv.setUint16(34,16,true);
+  s(36,'data');dv.setUint32(40,n*2,true);
+  const a=(vol||9)/10;
+  for(let i=0;i<n;i++){
+    const env=1-i/n; // затухание, чтобы не щёлкало
+    dv.setInt16(44+i*2,Math.round(Math.sin(2*Math.PI*freq*i/sr)*a*32767*env),true);
+  }
+  return beeps[key]=URL.createObjectURL(new Blob([buf],{type:'audio/wav'}));
+}
+function beep(freq,dur,vol){
+  try{const a=new Audio(beepWav(freq,dur,vol));a.volume=1;a.play().catch(()=>{});}catch(e){}
+}
+function buzz(p){
+  try{
+    const v=navigator.vibrate||navigator.mozVibrate;
+    if(v)v.call(navigator,p);
+  }catch(e){}
+  // звук через <audio>: WebAudio осцилляторы Firefox Android глушит во время камеры
+  try{
+    if(p>=600){beep(220,0.6,10);setTimeout(()=>beep(220,0.6,10),250);} // ошибка — громкий двойной низкий
+    else if(p>=150){beep(988,0.1);setTimeout(()=>beep(740,0.12),160);} // повтор — двойной бип
+    else beep(880,0.08); // успех — короткий высокий
+  }catch(e){}
+}
+
+// полноэкранный результат скана: зелёный ✓ успех, жёлтый ✓ уже отмечен, красный ✗ провал
+function flashQR(bg,icon,text,sub,ms,tc){
+  const f=document.getElementById('qrFlash');
+  f.style.background=bg;
+  const ic=document.getElementById('qrFlashIcon');
+  ic.textContent=icon;ic.style.color=tc||'#fff';
+  const t=document.getElementById('qrFlashText');
+  t.textContent=text;t.style.color=tc||'#fff';
+  const s=document.getElementById('qrFlashSub');
+  s.textContent=sub||'';s.style.color=tc||'#fff';
+  f.classList.remove('hide');
+  clearTimeout(qrFlashT);qrFlashT=setTimeout(()=>f.classList.add('hide'),ms);
+}
+
+async function startScan(){
+  setTimeout(()=>buzz(80),400); // тестовый писк: во время него жмите «громкость+» на устройстве
+  const msg=document.getElementById('qrMsg');
+  msg.textContent='';msg.style.color='var(--mut)';
+  show('qrPane');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    msg.style.color='var(--err)';
+    msg.textContent=location.protocol==='https:'
+      ?'Камера недоступна в этом браузере'
+      :'Камера работает только по https — откройте https://'+location.hostname+':8443';
+    return;
+  }
+  try{
+    qrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+  }catch(e){
+    msg.style.color='var(--err)';
+    msg.textContent=location.protocol==='https:'
+      ?'Нет доступа к камере'
+      :'Откройте по https://'+location.hostname+':8443 — самоподписанный сертификат, подтвердите его';
+    return;
+  }
+  const v=document.getElementById('qrVideo');
+  v.srcObject=qrStream;await v.play();
+  if(!qrCanvas)qrCanvas=document.createElement('canvas');
+  updateScanCount();
+  let lastDec=0;
+  const scan=()=>{
+    if(!qrStream)return;
+    if(v.readyState===v.HAVE_ENOUGH_DATA&&v.videoWidth){
+      const now=performance.now();
+      // разбор не чаще 12 раз/с — телефон не греется, скорость чтения не страдает
+      if(now-lastDec>=80){
+        lastDec=now;
+        // кадр ужимается до 1280px по ширине: меньше пикселей на разбор
+        const w=Math.min(v.videoWidth,1280);
+        const h=Math.round(v.videoHeight*w/v.videoWidth);
+        qrCanvas.width=w;qrCanvas.height=h;
+        const ctx=qrCanvas.getContext('2d');
+        ctx.drawImage(v,0,0,w,h);
+        // сбой разбора кадра не должен останавливать цикл сканирования
+        let text='';
+        try{
+          const img=ctx.getImageData(0,0,w,h);
+          const q=jsQR(img.data,w,h);
+          text=q&&q.data;
+          if(!text&&window.ZXing){
+            const F=ZXing.BarcodeFormat;
+            if(!zxFast)zxFast=zxMake([F.EAN_13,F.EAN_8,F.CODE_128],false);
+            text=zxDecode(qrCanvas,zxFast,ZXing.HybridBinarizer);
+            if(!text){
+              if(!zxHard)zxHard=zxMake([F.CODE_128,F.EAN_13,F.EAN_8,F.CODE_39,F.ITF],true);
+              if(qrFrame%4===0){
+                text=zxDecode(qrCanvas,zxHard,ZXing.HybridBinarizer);
+                if(!text)text=zxDecode(zxRot(qrCanvas,90),zxHard,ZXing.HybridBinarizer);
+                if(!text)text=zxDecode(zxRot(qrCanvas,270),zxHard,ZXing.HybridBinarizer);
+                // рябь от экрана гостя: размытая копия кадра
+                if(!text){
+                  const b=zxBlur(qrCanvas);
+                  const bq=jsQR(b.getContext('2d').getImageData(0,0,b.width,b.height),b.width,b.height);
+                  if(bq&&bq.data)text=bq.data;
+                }
+                if(!text)text=zxDecode(zxBlur(qrCanvas),zxHard,ZXing.HybridBinarizer);
+              }
+              if(!text&&qrFrame%8===0){
+                text=zxDecode(qrCanvas,zxHard,ZXing.GlobalHistogramBinarizer);
+                if(!text)text=zxDecode(zxRot(qrCanvas,90),zxHard,ZXing.GlobalHistogramBinarizer);
+                if(!text)text=zxDecode(zxRot(qrCanvas,270),zxHard,ZXing.GlobalHistogramBinarizer);
+              }
+            }
+          }
+        }catch(e){}
+        qrFrame++;
+        if(text)onQR(text);
+      }
+    }
+    qrRaf=requestAnimationFrame(scan);
+  };
+  qrRaf=requestAnimationFrame(scan);
+}
+
+// счётчик на экране сканера: отмечено из общего числа
+function updateScanCount(){
+  const el=document.getElementById('scanCount');
+  if(!el)return;
+  if(!event||!guests.length){el.textContent='';return;}
+  let a=0;for(const g of guests)if(g.arrived_at)a++;
+  el.textContent='отмечено '+a+' из '+guests.length;
+}
+
+function zxMake(formats,hard){
+  const r=new ZXing.MultiFormatReader();
+  const h=new Map();
+  h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,formats);
+  if(hard)h.set(ZXing.DecodeHintType.TRY_HARDER,true);
+  r.setHints(h);
+  return r;
+}
+
+// копия кадра с лёгким размытием: гасит moiré (рябь) от экрана телефона гостя
+function zxBlur(src){
+  if(!qrBlur)qrBlur=document.createElement('canvas');
+  qrBlur.width=src.width;qrBlur.height=src.height;
+  const c=qrBlur.getContext('2d');
+  c.filter='blur(1px)';
+  c.drawImage(src,0,0);
+  return qrBlur;
+}
+
+// штрихкод под любым углом: кадр поворачивается на 90°/270° перед разбором
+function zxRot(src,deg){
+  if(!qrRot)qrRot=document.createElement('canvas');
+  qrRot.width=deg%180?src.height:src.width;
+  qrRot.height=deg%180?src.width:src.height;
+  const c=qrRot.getContext('2d');
+  c.translate(qrRot.width/2,qrRot.height/2);
+  c.rotate(deg*Math.PI/180);
+  c.drawImage(src,-src.width/2,-src.height/2);
+  return qrRot;
+}
+function zxDecode(canvas,reader,Bin){
+  try{
+    const bmp=new ZXing.BinaryBitmap(new Bin(new ZXing.HTMLCanvasElementLuminanceSource(canvas)));
+    return reader.decode(bmp).getText();
+  }catch(e){try{reader.reset();}catch(e2){}return '';}
+}
+
+function stopScan(){
+  if(qrRaf)cancelAnimationFrame(qrRaf);qrRaf=null;
+  if(qrStream){qrStream.getTracks().forEach(t=>t.stop());qrStream=null;}
+  document.getElementById('qrVideo').srcObject=null;
+  enterEvent(event);
+}
+
+async function onQR(text){
+  const m=text.match(/(\d{4,}:\d{4,})/);
+  const code=m?m[1]:text.trim();
+  if(!code)return;
+  if(code===qrLast&&Date.now()-qrLastTS<3000)return; // тот же код не чаще раза в 3 с
+  qrLast=code;qrLastTS=Date.now();
+  const msg=document.getElementById('qrMsg');
+    if(/^https?:/i.test(code)){
+    msg.style.color='var(--err)';msg.textContent='QR содержит ссылку — попробуйте штрихкод';
+    buzz(600);flashQR('#b00020','✗','ПОПРОБУЙТЕ СКАНИРОВАТЬ ШТРИХ КОД',code.slice(0,60),1200);
+    qpush({t:'qrmiss',event,code});return;
+  }
+  const g=guests.find(x=>(x.ticket_number||'')===code||(x.barcode||'')===code);
+  if(!g){msg.style.color='var(--err)';msg.textContent='Не найден: '+code;buzz(600);flashQR('#b00020','✗','НЕ НАЙДЕН',code,900);qpush({t:'qrmiss',event,code});return;}
+  if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#d4ff00','✓','УЖЕ ОТМЕЧЕН',g.name,600,'#111');qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});return;}
+  g.arrived_at=new Date().toISOString();
+  qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});
+  msg.style.color='var(--ok)';msg.textContent='Отмечен: '+g.name;
+  buzz(80);flashQR('#1e8f4e','✓','ОТМЕЧЕН',g.name,450);
+  render();await flushQueue();
+}
+
+function openSrc(){
+  show('srcPane');
+  document.getElementById('srcEvent').value=event||'';
+  document.getElementById('srcLog').textContent='';
+}
+
+async function doImport(){
+  const ev=document.getElementById('srcEvent').value.trim();
+  const f=document.getElementById('srcFile').files[0];
+  const log=document.getElementById('srcLog');
+  if(!ev||!f){log.style.color='var(--err)';log.textContent='Нужны мероприятие и файл';return;}
+  log.style.color='var(--mut)';log.textContent='Импорт…';
+  try{
+    const body=await f.arrayBuffer();
+    const r=await api('/api/import?event='+encodeURIComponent(ev),{method:'POST',body});
+    log.style.color='var(--ok)';
+    log.textContent=`Готово: всего ${r.total}, новых ${r.added}, обновлено ${r.updated}`;
+    event=ev;localStorage.setItem('hg_event',ev);
+    setTimeout(()=>enterEvent(ev),600);
+  }catch(e){log.style.color='var(--err)';log.textContent=e.message;}
+}
+
+async function doRefresh(){
+  const ev=document.getElementById('srcEvent').value.trim();
+  const tpid=parseInt(document.getElementById('srcTpid').value,10);
+  const token=document.getElementById('srcToken').value.trim();
+  const log=document.getElementById('srcLog');
+  if(!ev||!tpid){log.style.color='var(--err)';log.textContent='Нужны мероприятие и ID события Timepad';return;}
+  log.style.color='var(--mut)';log.textContent='Запрос к Timepad…';
+  try{
+    const r=await api('/api/refresh',{method:'POST',body:{event:ev,timepad_id:tpid,token:token||undefined}});
+    log.style.color='var(--ok)';
+    log.textContent=`Готово: всего ${r.total}, новых ${r.added}, обновлено ${r.updated}`;
+    event=ev;localStorage.setItem('hg_event',ev);
+    setTimeout(()=>enterEvent(ev),600);
+  }catch(e){log.style.color='var(--err)';log.textContent=e.message;}
+}
+
+async function saveGuest(mark){
+  const name=document.getElementById('aName').value.trim();
+  if(!name){document.getElementById('addErr').textContent='Имя обязательно';return;}
+  if(!event){document.getElementById('addErr').textContent='Сначала выберите мероприятие';return;}
+  const payload={id:'walkin:'+Math.random().toString(36).slice(2,10),event,name,
+    phone:document.getElementById('aPhone').value.trim(),
+    email:document.getElementById('aEmail').value.trim(),
+    ticket_type:document.getElementById('aType').value.trim()};
+  if(navigator.onLine){
+    try{await api('/api/guest',{method:'POST',body:payload});}
+    catch(e){document.getElementById('addErr').textContent=e.message;return;}
+  }else{
+    qpush({t:'add',payload});
+  }
+  if(mark)qpush({t:'checkin',event,guest_id:payload.id,device:deviceName(),via:'tap'});
+  guests.push(Object.assign({arrived_at:mark?new Date().toISOString():''},payload));
+  saveCache();render();
+  ['aName','aPhone','aEmail','aType'].forEach(i=>document.getElementById(i).value='');
+  closePanes();
+  await flushQueue();
+}
+
+async function openStats(){
+  show('statsPane');
+  if(!guests.length&&event)loadCache();
+  const total=guests.length,arrived=guests.filter(g=>g.arrived_at).length;
+  document.getElementById('sArrived').textContent=arrived;
+  document.getElementById('sTotal').textContent=total;
+  const ts=guests.filter(g=>g.arrived_at).map(g=>new Date(g.arrived_at).getTime()).sort((a,b)=>a-b);
+  const now=Date.now(),win=10*60*1000;
+  const recent=ts.filter(t=>now-t<=win).length;
+  document.getElementById('sRate').textContent=ts.length?(recent/10).toFixed(1):'—';
+  if(ts.length>1){const gaps=[];for(let i=1;i<ts.length;i++)gaps.push((ts[i]-ts[i-1])/1000);const avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;document.getElementById('sGap').textContent=avg<60?Math.round(avg)+' с':(avg/60).toFixed(1)+' мин';}
+  else document.getElementById('sGap').textContent='—';
+  const byType={};guests.forEach(g=>{const t=g.ticket_type||'—';byType[t]=byType[t]||{a:0,n:0};byType[t].n++;if(g.arrived_at)byType[t].a++;});
+  const el=document.getElementById('sTypes');el.innerHTML='';
+  Object.entries(byType).sort((a,b)=>b[1].n-a[1].n).forEach(([t,v])=>{
+    const pct=v.n?Math.round(v.a/v.n*100):0;
+    const d=document.createElement('div');d.className='bar';
+    d.innerHTML=`<div class="t">${esc(t)}</div><div class="f"><i style="width:${pct}%"></i></div><div>${v.a}/${v.n}</div>`;
+    el.appendChild(d);
+  });
+  try{
+    const st=await api('/api/stats?event='+encodeURIComponent(event));
+    document.getElementById('sQR').textContent=st.qr;
+    document.getElementById('sTap').textContent=st.tap;
+    document.getElementById('sWalk').textContent=st.walkins;
+    document.getElementById('sMiss').textContent=st.false_qr;
+  }catch(e){}
+}
+
+window.addEventListener('online',()=>{flushQueue();refresh();});
+// мгновенная реакция на потерю сети на любой открытой странице
+window.addEventListener('offline',()=>setLive(false));
+// опрос соединения: сердце и полоска обновляются даже без опроса состояния
+function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getElementById(id)).filter(Boolean);if(els.length&&els.every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
+loadVer();
+setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
+document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
+document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
+// service worker: при потере сети страница переживает свайп-обновление и F5
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+boot();
+</script>
+</body>
+</html>
