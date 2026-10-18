@@ -214,37 +214,37 @@ func TestClientEvents(t *testing.T) {
 	defer st.Close()
 	s := New(&Config{PinHash: hashPin("1", "salt"), PinSalt: "salt"}, st, dir)
 
-	touch := func(ip string) {
-		r := httptest.NewRequest("GET", "/api/pin", nil)
+	touch := func(ip, dev string) {
+		r := httptest.NewRequest("GET", "/api/pin?device="+dev, nil)
 		r.RemoteAddr = ip + ":5000"
 		s.touch(r)
 	}
 
-	touch("10.0.0.7")
+	touch("10.0.0.7", "dev-a1b2")
 	evs := s.clientEvents()
-	if len(evs) != 1 || evs[0].Kind != "join" || evs[0].IP != "10.0.0.7" {
+	if len(evs) != 1 || evs[0].Kind != "join" || evs[0].IP != "10.0.0.7" || evs[0].Device != "dev-a1b2" {
 		t.Fatalf("после первого touch: %+v", evs)
 	}
-	touch("10.0.0.7")
+	touch("10.0.0.7", "dev-a1b2")
 	if evs := s.clientEvents(); len(evs) != 1 {
 		t.Fatalf("повторный touch не должен добавлять событие: %+v", evs)
 	}
 
 	// протух (>10с, но в пределах 5 мин) → leave при подсчёте клиентов
 	s.seenMu.Lock()
-	s.seen["10.0.0.7"] = time.Now().Add(-time.Minute)
+	s.seen["10.0.0.7"] = seenInfo{at: time.Now().Add(-time.Minute), dev: "dev-a1b2"}
 	s.seenMu.Unlock()
 	if n := s.clients(); n != 0 {
 		t.Fatalf("клиентов после протухания: %d", n)
 	}
 	evs = s.clientEvents()
-	if len(evs) != 2 || evs[0].Kind != "leave" {
+	if len(evs) != 2 || evs[0].Kind != "leave" || evs[0].Device != "dev-a1b2" {
 		t.Fatalf("после протухания: %+v", evs)
 	}
 
 	// древний хвост при открытии страницы молча выкидывается
 	s.seenMu.Lock()
-	s.seen["10.0.0.8"] = time.Now().Add(-10 * time.Minute)
+	s.seen["10.0.0.8"] = seenInfo{at: time.Now().Add(-10 * time.Minute)}
 	s.seenMu.Unlock()
 	s.clients()
 	if evs := s.clientEvents(); len(evs) != 2 {
