@@ -82,6 +82,8 @@ button:disabled{opacity:.5}
 
   <div class="card span">
     <div class="label">Резервная копия</div>
+    <div class="mut" id="bakAuto">авто: —</div>
+    <div class="mut" id="bakManual">вручную: —</div>
     <button id="bakBtn" style="width:100%">Создать дополнительный ручной бэкап</button>
     <div class="msg" id="bakMsg"></div>
   </div>
@@ -125,6 +127,8 @@ async function poll() {
     $('ips').innerHTML = (s.ips && s.ips.length)
       ? s.ips.map(ip => '<li><a href="https://' + ip + ':8443">https://' + ip + ':8443</a></li>').join('')
       : '<li class="mut">нет подключённых сетей</li>';
+    $('bakAuto').textContent = 'авто: ' + (s.backup_auto || '—');
+    $('bakManual').textContent = 'вручную: ' + (s.backup_manual || '—');
     if (s.pin) {
       $('pinValue').textContent = s.pin;
       $('pinValue').hidden = false;
