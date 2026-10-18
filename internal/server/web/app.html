@@ -34,6 +34,8 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .grp .row{margin-bottom:0;border-radius:0;background:none}
 .mlist{padding:2px 14px 12px 44px}
 .mem{font-size:13px;color:var(--mut);padding:3px 0}
+.chev{color:var(--mut);font-weight:400;padding-left:8px}
+.gbtn{width:100%;min-height:40px;padding:8px;font-size:14px;background:#2a313a;margin-top:8px}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
 .pane h2{margin:0 0 12px;font-size:20px}
 .field{margin-bottom:12px}
@@ -86,7 +88,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
     <span id="hgVer2" style="font-size:13px;color:var(--mut);font-weight:400"></span>
     <span id="liveDot" class="dot">❤️</span>
   </div>
-  <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span> <span id="cPct" style="color:var(--mut)"></span></div>
+  <div class="count" id="countLine">пришло 0 / 0</div>
   <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Группы</button></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/Barcode</button>
@@ -400,24 +402,38 @@ function filtered(){
 }
 
 let viewG=[];
+const expanded=new Set(); // открытые составы групп в виде «Группы»
+// countLine: в виде участников считаем людей (члены команды в счёт входят),
+// в виде групп — только командные билеты
+function countLine(){
+  const pct=(a,n)=>n?'('+Math.round(a/n*100)+'%)':'';
+  if(viewMode==='groups'){
+    const t=guests.filter(g=>g.team),ta=t.filter(g=>g.arrived_at).length;
+    return 'групп: пришло <b>'+ta+'</b> / '+t.length+' '+pct(ta,t.length);
+  }
+  const people=gs=>gs.reduce((s,g)=>s+Math.max(1,(g.members||[]).length),0);
+  const a=people(guests.filter(g=>g.arrived_at)),n=people(guests);
+  return 'участников: пришло <b>'+a+'</b> / '+n+' '+pct(a,n);
+}
 function render(){
   updateScanCount();
   const list=document.getElementById('list');
   const gs=filtered();
   gs.sort((a,b)=>((a.arrived_at?1:0)-(b.arrived_at?1:0))||((a.name||'')<(b.name||'')?-1:(a.name||'')>(b.name||'')?1:0));
   viewG=gs;
-  const arrived=guests.filter(g=>g.arrived_at).length;
-  document.getElementById('cArrived').textContent=arrived;
-  document.getElementById('cTotal').textContent=guests.length;
-  document.getElementById('cPct').textContent=guests.length?'('+Math.round(arrived/guests.length*100)+'%)':'';
+  document.getElementById('countLine').innerHTML=countLine();
   let html='';
   for(let i=0;i<gs.length;i++){
     const g=gs[i];
     const row=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
     if(viewMode==='groups'&&g.team){
-      const mem=(g.members||[]).map(m=>`<div class="mem">${esc(m)}</div>`).join('');
-      const n=(g.members||[]).length;
-      html+=`<div class="grp"><div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.team)}<div class="sub">Капитан: ${esc(g.name)}${n?' · '+n+' чел.':''}${g.ticket_type?' · '+esc(g.ticket_type):''}</div></div></div>${mem?`<div class="mlist">${mem}</div>`:''}</div>`;
+      const mem=g.members||[];
+      const open=expanded.has(g.id);
+      let roster='';
+      if(open){
+        roster=`<div class="mlist">${mem.length?mem.map(m=>`<div class="mem">${esc(m)}</div>`).join(''):'<div class="mem">состав не указан</div>'}<button class="gbtn" data-check="${i}">${g.arrived_at?'Снять отметку':'Отметить группу'}</button></div>`;
+      }
+      html+=`<div class="grp"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.team)}<div class="sub">Капитан: ${esc(g.name)}${mem.length?' · '+mem.length+' чел.':(g.ticket_type?' · '+esc(g.ticket_type):'')}</div></div><span class="chev">${open?'▾':'▸'}</span></div>${roster}</div>`;
     }else{
       html+=row;
     }
@@ -761,7 +777,18 @@ window.addEventListener('offline',()=>setLive(false));
 function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getElementById(id)).filter(Boolean);if(els.length&&els.every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
 loadVer();
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
-document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
+document.getElementById('list').addEventListener('click',e=>{
+  const cb=e.target.closest('[data-check]');
+  if(cb&&viewG[+cb.dataset.check]){tap(viewG[+cb.dataset.check]);return;}
+  const r=e.target.closest('.row');
+  if(!r||!viewG[+r.dataset.i])return;
+  const g=viewG[+r.dataset.i];
+  if(r.classList.contains('grow')){
+    expanded.has(g.id)?expanded.delete(g.id):expanded.add(g.id);
+    render();return;
+  }
+  tap(g);
+});
 syncView();
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
 // service worker: при потере сети страница переживает свайп-обновление и F5
