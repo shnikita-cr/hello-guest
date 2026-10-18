@@ -89,6 +89,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   <div id="offlineBar2" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
     <h2 style="flex:1;margin:0">Мероприятия</h2>
+    <span id="hgVer3" style="font-size:13px;color:var(--mut);font-weight:400"></span>
     <span id="liveDot2" class="dot">❤️</span>
   </div>
   <button class="primary" onclick="openSrc()" style="margin-bottom:12px">Загрузить выгрузку</button>
@@ -741,7 +742,7 @@ window.addEventListener('online',()=>{flushQueue();refresh();});
 // мгновенная реакция на потерю сети на любой открытой странице
 window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
-function loadVer(){const els=['hgVer','hgVer2'].map(id=>document.getElementById(id)).filter(Boolean);if(els.length&&els.every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
+function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getElementById(id)).filter(Boolean);if(els.length&&els.every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
 loadVer();
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
 document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
