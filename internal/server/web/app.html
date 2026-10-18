@@ -27,6 +27,13 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .row .mark{width:14px;height:14px;border-radius:50%;background:#2a313a}
 .row.arrived .mark{background:var(--ok)}
 .row.dup{border-color:var(--warn)}
+.vt{display:flex;gap:8px;margin:0 12px 10px}
+.vt button{flex:1;min-height:40px;padding:8px;font-size:14px;background:var(--card);border:1px solid #2a313a}
+.vt button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.grp{background:var(--card);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.grp .row{margin-bottom:0;border-radius:0;background:none}
+.mlist{padding:2px 14px 12px 44px}
+.mem{font-size:13px;color:var(--mut);padding:3px 0}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
 .pane h2{margin:0 0 12px;font-size:20px}
 .field{margin-bottom:12px}
@@ -80,6 +87,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
     <span id="liveDot" class="dot">❤️</span>
   </div>
   <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span> <span id="cPct" style="color:var(--mut)"></span></div>
+  <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Группы</button></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/Barcode</button>
   <div id="list" class="list"></div>
@@ -384,10 +392,13 @@ async function refresh(){
 }
 
 function q(){return document.getElementById('q').value.toLowerCase().trim();}
+let viewMode=localStorage.getItem('hg_view')||'all';
+function setView(m){viewMode=m;localStorage.setItem('hg_view',m);syncView();render();}
+function syncView(){document.getElementById('vwAll').classList.toggle('on',viewMode==='all');document.getElementById('vwGrp').classList.toggle('on',viewMode==='groups');}
 function filtered(){
   const s=q();
   if(!s)return guests;
-  return guests.filter(g=>(g.name||'').toLowerCase().includes(s)||(g.email||'').toLowerCase().includes(s)||(g.phone||'').toLowerCase().includes(s)||(g.ticket_number||'').toLowerCase().includes(s)||(g.barcode||'').toLowerCase().includes(s));
+  return guests.filter(g=>(g.name||'').toLowerCase().includes(s)||(g.email||'').toLowerCase().includes(s)||(g.phone||'').toLowerCase().includes(s)||(g.ticket_number||'').toLowerCase().includes(s)||(g.barcode||'').toLowerCase().includes(s)||(viewMode==='groups'&&((g.members||[]).join(' ')+' '+(g.team||'')).toLowerCase().includes(s)));
 }
 
 let viewG=[];
@@ -404,7 +415,14 @@ function render(){
   let html='';
   for(let i=0;i<gs.length;i++){
     const g=gs[i];
-    html+=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
+    const row=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
+    if(viewMode==='groups'&&g.team){
+      const mem=(g.members||[]).map(m=>`<div class="mem">${esc(m)}</div>`).join('');
+      const n=(g.members||[]).length;
+      html+=`<div class="grp"><div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.team)}<div class="sub">Капитан: ${esc(g.name)}${n?' · '+n+' чел.':''}${g.ticket_type?' · '+esc(g.ticket_type):''}</div></div></div>${mem?`<div class="mlist">${mem}</div>`:''}</div>`;
+    }else{
+      html+=row;
+    }
   }
   list.innerHTML=html;
 }
@@ -746,6 +764,7 @@ function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getEle
 loadVer();
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
 document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
+syncView();
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
 // service worker: при потере сети страница переживает свайп-обновление и F5
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))
