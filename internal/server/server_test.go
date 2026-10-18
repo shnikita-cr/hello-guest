@@ -204,3 +204,50 @@ func TestStatusStopRestart(t *testing.T) {
 		t.Fatalf("GET stop must be 405, got %d", rrG.Code)
 	}
 }
+
+func TestClientEvents(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "j.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	s := New(&Config{PinHash: hashPin("1", "salt"), PinSalt: "salt"}, st, dir)
+
+	touch := func(ip string) {
+		r := httptest.NewRequest("GET", "/api/pin", nil)
+		r.RemoteAddr = ip + ":5000"
+		s.touch(r)
+	}
+
+	touch("10.0.0.7")
+	evs := s.clientEvents()
+	if len(evs) != 1 || evs[0].Kind != "join" || evs[0].IP != "10.0.0.7" {
+		t.Fatalf("после первого touch: %+v", evs)
+	}
+	touch("10.0.0.7")
+	if evs := s.clientEvents(); len(evs) != 1 {
+		t.Fatalf("повторный touch не должен добавлять событие: %+v", evs)
+	}
+
+	// протух (>10с, но в пределах 5 мин) → leave при подсчёте клиентов
+	s.seenMu.Lock()
+	s.seen["10.0.0.7"] = time.Now().Add(-time.Minute)
+	s.seenMu.Unlock()
+	if n := s.clients(); n != 0 {
+		t.Fatalf("клиентов после протухания: %d", n)
+	}
+	evs = s.clientEvents()
+	if len(evs) != 2 || evs[0].Kind != "leave" {
+		t.Fatalf("после протухания: %+v", evs)
+	}
+
+	// древний хвост при открытии страницы молча выкидывается
+	s.seenMu.Lock()
+	s.seen["10.0.0.8"] = time.Now().Add(-10 * time.Minute)
+	s.seenMu.Unlock()
+	s.clients()
+	if evs := s.clientEvents(); len(evs) != 2 {
+		t.Fatalf("древний хвост не должен попадать в события: %+v", evs)
+	}
+}
