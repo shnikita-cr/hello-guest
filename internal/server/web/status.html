@@ -34,12 +34,15 @@ input{font:inherit;flex:1;min-width:0;padding:10px;border-radius:12px;border:1px
 button{font:inherit;border:0;border-radius:12px;padding:10px 16px;background:var(--acc);color:#fff;cursor:pointer;min-height:40px}
 button:disabled{opacity:.5}
 .msg{margin-top:6px;font-size:14px}
+.offline{background:var(--warn);color:#000;text-align:center;padding:6px;font-size:13px;border-radius:8px;margin:-10px -12px 8px}
+.hide{display:none}
 .msg.err{color:var(--err)}
 .msg.ok{color:var(--ok)}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div id="offlineBarS" class="offline hide">нет связи с сервисом</div>
   <h1>👋 Hello Guest <span class="heart" id="heart" style="margin-left:auto">❤️</span></h1>
 
   <div class="grid">
@@ -91,6 +94,7 @@ function heart(ok) {
   const h = $('heart');
   h.textContent = ok ? '❤️' : '💙';
   h.classList.toggle('off', !ok);
+  $('offlineBarS').classList.toggle('hide', ok);
 }
 
 function down() {
