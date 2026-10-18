@@ -85,11 +85,11 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 </div>
 
 <div id="eventPane" class="pane hide">
+  <div id="offlineBar2" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
     <h2 style="flex:1;margin:0">Мероприятия</h2>
     <span id="liveDot2" class="dot">❤️</span>
   </div>
-  <div id="offlineBar2" class="offline hide" style="margin:0 0 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
   <button class="primary" onclick="openSrc()" style="margin-bottom:12px">Загрузить выгрузку</button>
   <div id="evList"></div>
 </div>
@@ -161,12 +161,12 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
 </div>
 
 <div id="qrPane" class="pane hide" style="z-index:20;background:#000;inset:0">
+  <div id="offlineBar6" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN6">0</span> в очереди</div>
   <div style="max-width:640px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:8px">
       <h2 style="flex:1;margin:0">Сканер QR</h2>
       <span id="liveDot3" class="dot">❤️</span>
     </div>
-    <div id="offlineBar6" class="offline hide" style="margin:8px 0 12px">нет связи, <span id="queueN6">0</span> в очереди</div>
     <video id="qrVideo" autoplay playsinline muted style="width:100%;max-height:50vh;object-fit:cover;border-radius:12px;background:#111"></video>
     <div id="qrMsg" style="font-size:18px;font-weight:700;min-height:28px;margin:12px 0"></div>
     <div id="scanCount" style="font-size:16px;color:#d4ff00;font-weight:700;min-height:22px"></div>
