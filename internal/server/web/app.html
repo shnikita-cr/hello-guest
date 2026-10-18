@@ -76,6 +76,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   <div class="top">
     <button onclick="pickEvent()">←</button>
     <h1 id="evTitle"></h1>
+    <span id="hgVer2" style="font-size:13px;color:var(--mut);font-weight:400"></span>
     <span id="liveDot" class="dot">❤️</span>
   </div>
   <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span> <span id="cPct" style="color:var(--mut)"></span></div>
@@ -740,7 +741,7 @@ window.addEventListener('online',()=>{flushQueue();refresh();});
 // мгновенная реакция на потерю сети на любой открытой странице
 window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
-function loadVer(){const el=document.getElementById('hgVer');if(el&&el.textContent)return;api('/api/version').then(d=>{el&&(el.textContent='v'+d.version);}).catch(()=>{});}
+function loadVer(){const els=['hgVer','hgVer2'].map(id=>document.getElementById(id)).filter(Boolean);if(els.length&&els.every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
 loadVer();
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
 document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
