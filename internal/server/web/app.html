@@ -353,7 +353,7 @@ async function enterEvent(ev){
 function setLive(ok){
   ['liveDot','liveDot2','liveDot3','liveDot4','liveDot5','liveDot6','liveDot7'].forEach(id=>{
     const d=document.getElementById(id);if(!d)return;
-    d.style.color=ok?'var(--ok)':'var(--acc)';
+    d.style.color=ok?'var(--err)':'var(--acc)';
     d.classList.toggle('bad',!ok);
   });
   ['offlineBar','offlineBar2','offlineBar3','offlineBar4','offlineBar5','offlineBar6','offlineBar7'].forEach(id=>{
