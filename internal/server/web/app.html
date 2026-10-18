@@ -738,10 +738,11 @@ async function openStats(){
 
 window.addEventListener('online',()=>{flushQueue();refresh();});
 // мгновенная реакция на потерю сети на любой открытой странице
-api('/api/version').then(d=>{document.getElementById('hgVer').textContent='v'+d.version;}).catch(()=>{});
 window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
-setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>setLive(true)).catch(e=>setLive(e.message==='pin'));},2500);
+function loadVer(){const el=document.getElementById('hgVer');if(el&&el.textContent)return;api('/api/version').then(d=>{el&&(el.textContent='v'+d.version);}).catch(()=>{});}
+loadVer();
+setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
 document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
 // service worker: при потере сети страница переживает свайп-обновление и F5
