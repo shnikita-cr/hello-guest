@@ -104,7 +104,8 @@ func main() {
 		bk.DestDir = filepath.Join(*data, bk.DestDir)
 	}
 	bk.Start(nil, func(err error) { log.Printf("бэкап: %v", err) })
-	srv.TriggerBackup = func() (string, error) { return bk.BackupOnce(time.Now()) }
+	srv.TriggerBackup = func() (string, error) { return bk.Manual(time.Now()) }
+	srv.BackupTimes = bk.Times
 	printf("бэкапы: каждые 5 минут → %s\n", bk.DestDir)
 	listener, port := listen(*addr)
 	os.WriteFile(filepath.Join(*data, "status.port"), []byte(fmt.Sprintf("%d", port)), 0o644)
