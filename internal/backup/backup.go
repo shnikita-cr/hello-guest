@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,10 @@ type Runner struct {
 	Keep    int // сколько архивов хранить, 0 — без ограничения
 	Every   time.Duration
 	lastSig string
+
+	mu         sync.Mutex
+	lastAuto   time.Time
+	lastManual time.Time
 }
 
 // Signature описывает содержимое каталога: если не изменилось — бэкап пропускается.
@@ -45,6 +50,8 @@ func (r *Runner) Signature() (string, error) {
 // BackupOnce создаёт архив, если данные менялись с прошлого раза.
 // Возвращает путь к архиву ("" — если пропущено).
 func (r *Runner) BackupOnce(now time.Time) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	sig, err := r.Signature()
 	if err != nil {
 		return "", err
@@ -90,6 +97,35 @@ func (r *Runner) rotate() error {
 	return nil
 }
 
+// Auto: бэкап по таймеру; запоминает время последнего созданного архива.
+func (r *Runner) Auto(now time.Time) (string, error) {
+	p, err := r.BackupOnce(now)
+	if err == nil && p != "" {
+		r.mu.Lock()
+		r.lastAuto = now
+		r.mu.Unlock()
+	}
+	return p, err
+}
+
+// Manual: то же по кнопке ручного бэкапа.
+func (r *Runner) Manual(now time.Time) (string, error) {
+	p, err := r.BackupOnce(now)
+	if err == nil && p != "" {
+		r.mu.Lock()
+		r.lastManual = now
+		r.mu.Unlock()
+	}
+	return p, err
+}
+
+// Times: время последних созданных архивов (авто, ручной); ноль — ещё не было.
+func (r *Runner) Times() (time.Time, time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastAuto, r.lastManual
+}
+
 // Start поднимает горутину: первый бэкап через every, дальше по таймеру.
 func (r *Runner) Start(stop <-chan struct{}, onError func(error)) {
 	go func() {
@@ -98,7 +134,7 @@ func (r *Runner) Start(stop <-chan struct{}, onError func(error)) {
 		for {
 			select {
 			case <-t.C:
-				if _, err := r.BackupOnce(time.Now()); err != nil && onError != nil {
+				if _, err := r.Auto(time.Now()); err != nil && onError != nil {
 					onError(err)
 				}
 			case <-stop:

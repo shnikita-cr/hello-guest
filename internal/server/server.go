@@ -96,6 +96,7 @@ type Server struct {
 	// OnStop/OnRestart — стоп и перезапуск процесса (живут в cmd).
 	StatusIPs     []string
 	TriggerBackup func() (string, error)
+	BackupTimes   func() (auto, manual time.Time)
 	OnStop        func()
 	OnRestart     func()
 
@@ -284,7 +285,27 @@ func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {
 		"pin":     s.cfg.PinPlain,
 		"uptime":  int(time.Since(s.started).Seconds()),
 		"backup":  s.TriggerBackup != nil,
-		"events":  s.clientEvents(),
+		"backup_auto": func() string {
+			if s.BackupTimes == nil {
+				return ""
+			}
+			a, _ := s.BackupTimes()
+			if a.IsZero() {
+				return ""
+			}
+			return a.Format("02.01.2006 15:04")
+		}(),
+		"backup_manual": func() string {
+			if s.BackupTimes == nil {
+				return ""
+			}
+			_, m := s.BackupTimes()
+			if m.IsZero() {
+				return ""
+			}
+			return m.Format("02.01.2006 15:04")
+		}(),
+		"events": s.clientEvents(),
 	})
 }
 

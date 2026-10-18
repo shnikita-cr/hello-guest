@@ -67,3 +67,39 @@ func TestBackupSkipRotateAndContent(t *testing.T) {
 		t.Fatal("journal not in archive")
 	}
 }
+
+func TestAutoManualTimes(t *testing.T) {
+	data := t.TempDir()
+	dest := filepath.Join(t.TempDir(), "copies")
+	journal := filepath.Join(data, "j.ndjson")
+	if err := os.WriteFile(journal, []byte("v1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := &Runner{DataDir: data, DestDir: dest}
+	t1 := time.Date(2026, 10, 18, 10, 0, 0, 0, time.UTC)
+	if _, err := r.Auto(t1); err != nil {
+		t.Fatal(err)
+	}
+	a, m := r.Times()
+	if !a.Equal(t1) || !m.IsZero() {
+		t.Fatalf("после авто: auto=%v manual=%v", a, m)
+	}
+	if err := os.WriteFile(journal, []byte("v2"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t2 := t1.Add(time.Minute)
+	if _, err := r.Manual(t2); err != nil {
+		t.Fatal(err)
+	}
+	a, m = r.Times()
+	if !a.Equal(t1) || !m.Equal(t2) {
+		t.Fatalf("после ручного: auto=%v manual=%v", a, m)
+	}
+	// без изменений архив не создаётся и ручной не двигается
+	if p, _ := r.Manual(t2.Add(time.Minute)); p != "" {
+		t.Fatal("пропуск: архив не должен создаваться")
+	}
+	if _, m = r.Times(); !m.Equal(t2) {
+		t.Fatalf("пропуск сдвинул ручной: %v", m)
+	}
+}
