@@ -356,7 +356,7 @@ func (s *Server) handleRestart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, map[string]string{"version": Version})
+	writeJSON(w, map[string]string{"version": strings.TrimPrefix(Version, "v")})
 }
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
