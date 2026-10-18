@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>⚙️ Hello Guest - Status</title>
+<title>Hello Guest - Status</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
 <style>
 :root{--bg:#0f1216;--card:#1a1f26;--fg:#e8edf2;--mut:#8a94a0;--ok:#2ecc71;--err:#e74c3c;--acc:#3b82f6}
@@ -43,7 +43,7 @@ button:disabled{opacity:.5}
 <body>
 <div class="wrap">
   <div id="offlineBarS" class="offline hide">нет связи с сервисом</div>
-  <h1><span id="hTitle">Hello Guest - Status</span> <span class="heart" id="heart" style="margin-left:auto">❤️</span></h1>
+  <h1><span>⚙️ Hello Guest - Status</span><span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span id="hVer" style="font-size:14px;color:var(--mut);font-weight:400"></span><span class="heart" id="heart">❤️</span></span></h1>
 
   <div class="grid">
   <div class="card">
@@ -118,8 +118,7 @@ async function poll() {
           + (e.device ? ' · ' + e.device : '') + ' — '
           + (e.kind === 'join' ? 'подключился' : 'вышел из сети') + '</li>').join('')
       : '<li class="mut">событий не было</li>';
-    document.title = '⚙️ Hello Guest - Status · ' + ver;
-    $('hTitle').textContent = 'Hello Guest - Status · ' + ver;
+    $('hVer').textContent = ver;
     const h = Math.floor(s.uptime / 3600), m = Math.floor(s.uptime % 3600 / 60);
     const ver = 'v' + s.version;
     $('meta').textContent = ver + ' · uptime ' + (h ? h + ' ч ' : '') + m + ' мин';
