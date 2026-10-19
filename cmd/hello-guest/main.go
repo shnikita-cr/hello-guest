@@ -14,12 +14,11 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/grandcat/zeroconf"
 
 	"hello-guest/internal/backup"
 	"hello-guest/internal/server"
@@ -27,6 +26,14 @@ import (
 )
 
 var version = "dev"
+
+// короткая версия без patch: v1.5.0-dirty → 1.5; dev и хэши как есть
+func shortVersion(v string) string {
+	if m := regexp.MustCompile(`^v?(\d+)\.(\d+)`).FindStringSubmatch(v); m != nil {
+		return m[1] + "." + m[2]
+	}
+	return strings.TrimPrefix(v, "v")
+}
 
 // daemonMode: фоновый ребёнок пишет стартовый вывод сам, в файл журнала
 // с меткой времени; обычный режим — в консоль.
@@ -47,11 +54,10 @@ func main() {
 	log.SetFlags(0) // метку времени ставит tsWriter в фоновом журнале
 	addr := flag.String("addr", "", "listen address (default :80, fallback :8080)")
 	data := flag.String("data", "./data", "data directory")
-	name := flag.String("name", "hello-guest", "mDNS hostname (<name>.local)")
 	showVer := flag.Bool("version", false, "print version and exit")
 	detach := flag.Bool("d", false, "show startup info in console, then run in background")
 	backupDir := flag.String("backup-dir", "../../copy-data", "backup directory (relative to data dir)")
-	advertiseIP := flag.String("ip", "", "advertised IP for banner and mDNS (default: auto-detect)")
+	advertiseIP := flag.String("ip", "", "advertised IP for banner (default: auto-detect)")
 	openStatus := flag.Bool("open", false, "open the status page in the browser after start")
 	flag.Parse()
 	if *showVer {
@@ -81,12 +87,21 @@ func main() {
 		return
 	}
 
+	printf(`  _   _ _____ _   _  ____                  
+ | | | |_   _| | | |/ ___| ___  ___  _ __   __| |  _ \| ___| / __||_   _| | |
+ | |_| || |   | |_| || |    / _ \/ _ \| '_ \ / _` + "`" + ` | |_) |___ \\__ \_   _| |_| |_|
+ |____/|_|   | \___/ |_|    \___/\___/|_| |_\__,_|____/|___/  |_|  \___/ \___/|
+`)
+
 	cfg, pin, err := server.LoadOrCreateConfig(*data)
 	if err != nil {
 		log.Fatal(err)
 	}
+	if pin == "" { // конфиг уже был: PIN храним в нём же для консоли
+		pin = cfg.PinPlain
+	}
 	if pin != "" {
-		printf("\n  PIN: %s\n\n", pin)
+		printf("\nPIN: %s\n\n", pin)
 	}
 
 	st, err := store.Open(*data + "/hello-guest.ndjson")
@@ -95,7 +110,7 @@ func main() {
 	}
 	defer st.Close()
 
-	server.Version = strings.TrimPrefix(version, "v")
+	server.Version = shortVersion(version)
 	srv := server.New(cfg, st, *data)
 
 	// бэкапы каталога данных: каждые 5 минут zip, хранятся последние 20
@@ -106,7 +121,6 @@ func main() {
 	bk.Start(nil, func(err error) { log.Printf("бэкап: %v", err) })
 	srv.TriggerBackup = func() (string, error) { return bk.Manual(time.Now()) }
 	srv.BackupTimes = bk.Times
-	printf("бэкапы: каждые 5 минут → %s\n", bk.DestDir)
 	listener, port := listen(*addr)
 	os.WriteFile(filepath.Join(*data, "status.port"), []byte(fmt.Sprintf("%d", port)), 0o644)
 	var ips []string
@@ -116,14 +130,7 @@ func main() {
 		ips = availableIPs()
 	}
 	srv.StatusIPs = ips
-	host := *name
-	// в mDNS при автоопределении уходит только основной адрес,
-	// явный список --ip публикуется целиком
-	mdns := ips[:1]
-	if *advertiseIP != "" {
-		mdns = ips
-	}
-	printf("hello-guest запущен\n")
+	printf("Hello-Guest запущен успешно\n")
 
 	// TLS на 8443: камера (сканер QR) работает только в secure context
 	var tlsL net.Listener
@@ -131,10 +138,7 @@ func main() {
 	if err != nil {
 		printf("TLS недоступен: %v\n", err)
 	} else {
-		printf("  https://%s:8443\n", *name+".local")
-		for _, x := range ips {
-			printf("  https://%s:8443\n", x)
-		}
+		printf("Сертификат: %s\n", certFile)
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
 			printf("TLS: %v\n", err)
@@ -151,11 +155,13 @@ func main() {
 		}
 	}
 
-	done := make(chan struct{})
-	if sd, err := zeroconf.RegisterProxy(*name, "_http._tcp", "local.", port, host, mdns, nil, nil); err == nil {
-		go func() { <-done; sd.Shutdown() }()
-	} else {
-		printf("mDNS недоступен: %v\n", err)
+	printf("Бэкапы каждые 5 минут: %s\n", bk.DestDir)
+	if len(ips) > 0 {
+		for _, x := range ips {
+			printf("Адрес подключения: https://%s:8443\n", x)
+		}
+		printf("какая сеть у вас — разработчик не знает: подходит адрес, что открывается с планшета\n")
+		printf("Сброс браузера: https://%s:8443/reset\n", ips[0])
 	}
 
 	// стоп и перезапуск — кнопками экрана статуса (только localhost)
@@ -200,7 +206,6 @@ func main() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 		<-ch
-		close(done)
 		listener.Close()
 		os.Exit(0)
 	}()

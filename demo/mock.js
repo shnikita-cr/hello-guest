@@ -153,6 +153,14 @@
       save(d);
       return json({ ok: true });
     }
+    if (p === '/api/team' && method === 'POST') {
+      const g = d.guests.find(x => x.event === b.event && x.id === b.guest_id);
+      if (!g) return json({ error: 'guest not found' }, 404);
+      g.team = b.team;
+      g.members = b.members || [];
+      save(d);
+      return json({ ok: true });
+    }
     if (p === '/api/guest' && method === 'POST') {
       if (!b.name) return json({ error: 'name required' }, 400);
       b.id = b.id || 'walkin:' + Math.random().toString(36).slice(2, 10);

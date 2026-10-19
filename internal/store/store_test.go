@@ -137,6 +137,35 @@ func TestMemberSnapshot(t *testing.T) {
 	}
 }
 
+func TestSetTeam(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "data.ndjson")
+	s1, _ := Open(path)
+	s1.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A", Team: "Орбита", Members: []string{"A", "B"}}})
+	s1.Checkin("e1", "g1", "d", "tap", time.Now())
+	if err := s1.SetTeam("e1", "g1", "Орбита-2", []string{"A", "B", "C"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s1.SetTeam("e1", "nope", "x", nil, time.Now()); err != ErrNotFound {
+		t.Fatalf("нет гостя: %v", err)
+	}
+	s1.Close()
+
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	gs := s2.Search("e1", "a")
+	if len(gs) != 1 {
+		t.Fatalf("search: %+v", gs)
+	}
+	g := gs[0]
+	if g.Team != "Орбита-2" || len(g.Members) != 3 || g.ArrivedAt == "" {
+		t.Fatalf("состав/отметка потерялись: %+v", g)
+	}
+}
+
 func TestUndoCheckin(t *testing.T) {
 	s := tempStore(t)
 	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})

@@ -96,8 +96,9 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <div class="count" id="countLine">пришло 0 / 0</div>
   <div class="count" id="metLine" style="display:none"></div>
   <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Команды</button></div>
+  <button id="btnAddTeam" class="hide" style="margin:0 12px 8px;width:calc(100% - 24px)" onclick="addGroup()">+ Группа</button>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
-  <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/Barcode</button>
+  <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/штрих-код</button>
   <div id="list" class="list"></div>
 </div>
 
@@ -401,7 +402,11 @@ async function refresh(){
 function q(){return document.getElementById('q').value.toLowerCase().trim();}
 let viewMode=localStorage.getItem('hg_view')||'all';
 function setView(m){viewMode=m;localStorage.setItem('hg_view',m);syncView();render();}
-function syncView(){document.getElementById('vwAll').classList.toggle('on',viewMode==='all');document.getElementById('vwGrp').classList.toggle('on',viewMode==='groups');}
+function syncView(){
+  document.getElementById('vwAll').classList.toggle('on',viewMode==='all');
+  document.getElementById('vwGrp').classList.toggle('on',viewMode==='groups');
+  document.getElementById('btnAddTeam').classList.toggle('hide',viewMode!=='groups');
+}
 function filtered(){
   const s=q();
   if(!s)return guests;
@@ -439,14 +444,13 @@ async function pushMembers(g,members){
   }
   qpush({t:'member',...body});saveQueue();updateQueueN();
 }
-// countLine: в виде участников — люди, в виде групп — все билеты
-// (соло + капитаны команд), плюс метрики средних по тру-группам
+// countLine: в виде участников — билеты плюс люди на metLine,
+// в виде команд — только команды, метрики средних по тру-группам
 function countLine(){
   const pct=(a,n)=>n?'('+Math.round(a/n*100)+'%)':'';
   const met=document.getElementById('metLine');
   if(viewMode==='groups'){
-    const teams=guests.filter(isTeam),ta=guests.filter(g=>g.arrived_at).length;
-    const solos=guests.length-teams.length;
+    const teams=guests.filter(isTeam),ta=teams.filter(g=>g.arrived_at).length;
     const sizes=teams.map(g=>Math.max(1,(g.members||[]).length));
     const arrs=teams.map(g=>roster(g).filter(x=>x.on).length);
     const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
@@ -455,7 +459,7 @@ function countLine(){
       met.innerHTML='в среднем в тру-группе: '+as.toFixed(1)+' чел · пришло '+aa.toFixed(1)+' ('+(as?Math.round(aa/as*100):0)+'%)';
       met.style.display='';
     }else met.style.display='none';
-    return 'групп: пришло <b>'+ta+'</b> / '+guests.length+' '+pct(ta,guests.length)+' · сольных: '+solos+' · командных: '+teams.length;
+    return 'команд: пришло <b>'+ta+'</b> / '+teams.length+' '+pct(ta,teams.length);
   }
   const people=gs=>gs.reduce((s,g)=>s+Math.max(1,(g.members||[]).length),0);
   const a=people(guests.filter(g=>g.arrived_at)),n=people(guests);
@@ -467,7 +471,8 @@ function countLine(){
 function render(){
   updateScanCount();
   const list=document.getElementById('list');
-  const gs=filtered();
+  let gs=filtered();
+  if(viewMode==='groups')gs=gs.filter(isTeam); // одиночки в командном виде не показываем
   gs.sort((a,b)=>((a.arrived_at?1:0)-(b.arrived_at?1:0))||((a.name||'')<(b.name||'')?-1:(a.name||'')>(b.name||'')?1:0));
   viewG=gs;
   document.getElementById('countLine').innerHTML=countLine();
@@ -484,9 +489,9 @@ function render(){
         const rows=r.map((x,mi)=>{
           // подпись одинакова у всех строк: билет команды у членов тот же, что у капитана
           const sub=`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
-          return `<div class="row${x.on?' arrived':''}"${team?` data-mem="${mi}" data-mi="${i}"`:` data-solo="${i}"`}><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
+          return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
         }).join('');
-        body=`<div class="mlist">${rows}</div>`;
+        body=`<div class="mlist">${rows}<button style="width:100%;margin-top:8px" onclick="addMember(${i})">+ Гость</button></div>`;
       }
       const title=team?(g.team||g.name):g.name;
       const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
@@ -531,6 +536,41 @@ function deviceName(){
   return d;
 }
 
+// новая группа в командном виде: капитан — первый из состава
+async function addGroup(){
+  const name=prompt('Название группы');
+  if(!name||!name.trim())return;
+  const people=prompt('Кто в группе? Имена через запятую, первый — капитан');
+  if(!people)return;
+  const members=people.split(',').map(x=>x.trim()).filter(Boolean);
+  if(!members.length)return;
+  const payload={id:'walkin:'+Math.random().toString(36).slice(2,10),event,
+    name:members[0],ticket_type:'Командный билет',team:name.trim(),members};
+  if(navigator.onLine){
+    try{await api('/api/guest',{method:'POST',body:payload});}
+    catch(e){alert(e.message);return;}
+  }else qpush({t:'add',payload});
+  guests.push(Object.assign({arrived_at:'',member_arrived:{}},payload));
+  expanded.add(payload.id);
+  saveCache();render();await flushQueue();
+}
+
+// человек в открытую группу: состав хранится на госте-владельце билета
+async function addMember(i){
+  const g=viewG[i];if(!g)return;
+  const n=prompt('Имя нового участника');
+  if(!n||!n.trim())return;
+  // у команды без состава в roster числится сам капитан — сохраняем его первым
+  const members=(g.members&&g.members.length?g.members:[g.name]).concat([n.trim()]);
+  g.members=members;
+  const b={event,guest_id:g.id,team:g.team||'',members};
+  if(navigator.onLine){
+    try{await api('/api/team',{method:'POST',body:b});}
+    catch(e){alert(e.message);return;}
+  }else qpush({t:'team',...b});
+  saveCache();render();await flushQueue();
+}
+
 async function flushQueue(){
   if(!queue.length||!navigator.onLine)return;
   const q2=queue.slice();queue=[];
@@ -541,6 +581,7 @@ async function flushQueue(){
       if(item.t==='add')await api('/api/guest',{method:'POST',body:item.payload});
       if(item.t==='qrmiss')await api('/api/qrmiss',{method:'POST',body:{event:item.event,code:item.code}});
       if(item.t==='member')await api('/api/member',{method:'POST',body:{event:item.event,guest_id:item.guest_id,members:item.members}});
+      if(item.t==='team')await api('/api/team',{method:'POST',body:{event:item.event,guest_id:item.guest_id,team:item.team,members:item.members}});
     }catch(e){queue.push(item);}
   }
   saveQueue();
@@ -833,6 +874,17 @@ async function openStats(){
     d.innerHTML=`<div class="t">${esc(t)}</div><div class="f"><i style="width:${pct}%"></i></div><div>${v.a}/${v.n}</div>`;
     el.appendChild(d);
   });
+  // командные билеты и люди в их составах — отдельными строками
+  const teams=guests.filter(isTeam);
+  if(teams.length){
+    const bar=(label,a,b)=>{
+      const d=document.createElement('div');d.className='bar';
+      d.innerHTML=`<div class="t">${label}</div><div class="f"><i style="width:${b?Math.round(a/b*100):0}%"></i></div><div>${a}/${b}</div>`;
+      el.appendChild(d);
+    };
+    bar('Командные билеты',teams.filter(g=>g.arrived_at).length,teams.length);
+    bar('Люди в командах',teams.reduce((s,g)=>s+roster(g).filter(x=>x.on).length,0),teams.reduce((s,g)=>s+roster(g).length,0));
+  }
   try{
     const st=await api('/api/stats?event='+encodeURIComponent(event));
     document.getElementById('sQR').textContent=st.qr;
@@ -860,8 +912,6 @@ document.getElementById('list').addEventListener('click',e=>{
     }
     return;
   }
-  const sb=e.target.closest('[data-solo]');
-  if(sb){tap(viewG[+sb.dataset.solo]);return;}
   const r=e.target.closest('.row');
   if(!r||!viewG[+r.dataset.i])return;
   const g=viewG[+r.dataset.i];

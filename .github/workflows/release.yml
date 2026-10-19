@@ -31,17 +31,14 @@ jobs:
           BRANCH: ${{ github.ref_name }}
         run: |
           LATEST=$(git tag -l 'v*' --sort=-v:refname | head -1)
-          [ -z "$LATEST" ] && LATEST=v0.0.0
-          IFS=. read -r MA MI PA <<< "${LATEST#v}"
-          PARENTS=$(git rev-list --parents -n 1 HEAD | wc -w)
+          [ -z "$LATEST" ] && LATEST=v0.0
+          IFS=. read -r MA MI <<< "${LATEST#v}"
           if [ "$BRANCH" = "main" ]; then
-            MA=$((MA+1)); MI=0; PA=0
-          elif [ "$PARENTS" -gt 2 ]; then
-            MI=$((MI+1)); PA=0
+            MA=$((MA+1)); MI=0
           else
-            PA=$((PA+1))
+            MI=$((MI+1))
           fi
-          echo "tag=v$MA.$MI.$PA" >> "$GITHUB_OUTPUT"
+          echo "tag=v$MA.$MI" >> "$GITHUB_OUTPUT"
       - name: build binaries
         run: |
           V=${{ steps.ver.outputs.tag }}
@@ -57,6 +54,24 @@ jobs:
           build linux arm64 ""
           build windows amd64 ".exe"
           ls -la dist
+      - name: build manual pdf
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends pandoc python3-pip \
+            libpango-1.0-0 libpangocairo-1.0-0 fonts-dejavu-core
+          python3 -m pip install --break-system-packages --quiet weasyprint
+          mkdir -p dist-pdf
+          pandoc docs/README.md docs/startup.md docs/home.md docs/status.md docs/admin.md \
+            -H docs/pdf-header.html --toc --toc-depth=2 \
+            --metadata title="Hello Guest" \
+            --metadata subtitle="Руководство пользователя" \
+            --metadata author="github.com/shnikita-cr/hello-guest" \
+            --metadata date="Версия $TAG · $(date -u +%d.%m.%Y)" \
+            -o dist-pdf/hello-guest-manual.html
+          weasyprint dist-pdf/hello-guest-manual.html dist-pdf/hello-guest-manual.pdf
+          ls -la dist-pdf
       - name: tag and release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,4 +86,4 @@ jobs:
           fi
           git tag "$TAG"
           git push origin "$TAG"
-          gh release create "$TAG" dist/* --title "$TAG" --notes "$NOTES"
+          gh release create "$TAG" dist/* dist-pdf/hello-guest-manual.pdf --title "$TAG" --notes "$NOTES"
