@@ -439,14 +439,13 @@ async function pushMembers(g,members){
   }
   qpush({t:'member',...body});saveQueue();updateQueueN();
 }
-// countLine: в виде участников — люди, в виде групп — все билеты
-// (соло + капитаны команд), плюс метрики средних по тру-группам
+// countLine: в виде участников — билеты плюс люди на metLine,
+// в виде команд — только команды, метрики средних по тру-группам
 function countLine(){
   const pct=(a,n)=>n?'('+Math.round(a/n*100)+'%)':'';
   const met=document.getElementById('metLine');
   if(viewMode==='groups'){
-    const teams=guests.filter(isTeam),ta=guests.filter(g=>g.arrived_at).length;
-    const solos=guests.length-teams.length;
+    const teams=guests.filter(isTeam),ta=teams.filter(g=>g.arrived_at).length;
     const sizes=teams.map(g=>Math.max(1,(g.members||[]).length));
     const arrs=teams.map(g=>roster(g).filter(x=>x.on).length);
     const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
@@ -455,7 +454,7 @@ function countLine(){
       met.innerHTML='в среднем в тру-группе: '+as.toFixed(1)+' чел · пришло '+aa.toFixed(1)+' ('+(as?Math.round(aa/as*100):0)+'%)';
       met.style.display='';
     }else met.style.display='none';
-    return 'групп: пришло <b>'+ta+'</b> / '+guests.length+' '+pct(ta,guests.length)+' · сольных: '+solos+' · командных: '+teams.length;
+    return 'команд: пришло <b>'+ta+'</b> / '+teams.length+' '+pct(ta,teams.length);
   }
   const people=gs=>gs.reduce((s,g)=>s+Math.max(1,(g.members||[]).length),0);
   const a=people(guests.filter(g=>g.arrived_at)),n=people(guests);
@@ -467,7 +466,8 @@ function countLine(){
 function render(){
   updateScanCount();
   const list=document.getElementById('list');
-  const gs=filtered();
+  let gs=filtered();
+  if(viewMode==='groups')gs=gs.filter(isTeam); // одиночки в командном виде не показываем
   gs.sort((a,b)=>((a.arrived_at?1:0)-(b.arrived_at?1:0))||((a.name||'')<(b.name||'')?-1:(a.name||'')>(b.name||'')?1:0));
   viewG=gs;
   document.getElementById('countLine').innerHTML=countLine();
@@ -484,7 +484,7 @@ function render(){
         const rows=r.map((x,mi)=>{
           // подпись одинакова у всех строк: билет команды у членов тот же, что у капитана
           const sub=`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
-          return `<div class="row${x.on?' arrived':''}"${team?` data-mem="${mi}" data-mi="${i}"`:` data-solo="${i}"`}><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
+          return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
         }).join('');
         body=`<div class="mlist">${rows}</div>`;
       }
@@ -860,8 +860,6 @@ document.getElementById('list').addEventListener('click',e=>{
     }
     return;
   }
-  const sb=e.target.closest('[data-solo]');
-  if(sb){tap(viewG[+sb.dataset.solo]);return;}
   const r=e.target.closest('.row');
   if(!r||!viewG[+r.dataset.i])return;
   const g=viewG[+r.dataset.i];
