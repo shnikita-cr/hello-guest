@@ -31,9 +31,12 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .vt button{flex:1;min-height:40px;padding:8px;font-size:14px;background:var(--card);border:1px solid #2a313a}
 .vt button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
 .grp{border:1px solid #2a313a;border-radius:12px;margin-bottom:8px;overflow:hidden}
-.grp .row{margin-bottom:8px}
-.mlist{padding:0}
+.grp .row{margin-bottom:0}
+.mlist{padding:0;margin-top:8px}
 .mlist .row:last-child{margin-bottom:0}
+.mlist .row{background:#2a313a}
+.mlist .row .mark{background:#3a4451}
+.mlist .row.arrived .mark{background:var(--ok)}
 .chev{color:var(--mut);font-weight:400;padding-left:8px}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
 .pane h2{margin:0 0 12px;font-size:20px}
@@ -89,7 +92,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   </div>
   <div class="count" id="countLine">пришло 0 / 0</div>
   <div class="count" id="metLine" style="display:none"></div>
-  <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Группы</button></div>
+  <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Команды</button></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/Barcode</button>
   <div id="list" class="list"></div>
@@ -405,7 +408,8 @@ let viewG=[];
 const expanded=new Set(); // открытые составы в виде «Группы»
 // группа = командный билет по названию команды или типу билета:
 // так группы не обнуляются на данных, импортированных до появления поля team
-const isTeam=g=>!!g.team||/командн/i.test(g.ticket_type||'');
+// тип билета главнее: сольный билет с мусором в колонке «название команды» — не группа
+const isTeam=g=>/командн/i.test(g.ticket_type||'')||(!g.ticket_type&&!!g.team);
 // люди для отображения: члены команды, либо сам гость (соло/команда без состава)
 function roster(g){
   // у соло единственный человек — сам гость, даже если в выгрузке есть «состав»
@@ -508,7 +512,9 @@ function markCaptain(g,on){
   const names=(g.members&&g.members.length)?g.members:[g.name];
   const prev=g.member_arrived||{};
   const m={};names.forEach(n=>m[n]=!!prev[n]);
-  m[g.name]=on;
+  // в составе капитан записан ФИО иначе, чем имя гостя: берём точное совпадение
+  // или первого члена — Timepad всегда ставит капитана первым
+  m[names.includes(g.name)?g.name:names[0]]=on;
   g.member_arrived=m;saveCache();
   qpush({t:'member',event,guest_id:g.id,members:m});saveQueue();updateQueueN();
 }
@@ -842,7 +848,10 @@ document.getElementById('list').addEventListener('click',e=>{
   if(mg){
     const g=viewG[+mg.dataset.mi];
     const x=g&&roster(g)[+mg.dataset.mem];
-    if(x)pushMembers(g,memberSnap(g,x.n));
+    if(x){
+      if(x.on&&!confirm('Уже отмечен. Снять отметку?'))return;
+      pushMembers(g,memberSnap(g,x.n));
+    }
     return;
   }
   const sb=e.target.closest('[data-solo]');
