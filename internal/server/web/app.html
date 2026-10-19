@@ -10,7 +10,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font:16px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
 .hide{display:none!important}
-button{font:inherit;border:0;border-radius:12px;padding:14px 16px;background:var(--card);color:var(--fg);cursor:pointer;min-height:48px}
+button{font:inherit;border:1px solid #2a313a;border-radius:12px;padding:14px 16px;background:var(--card);color:var(--fg);cursor:pointer;min-height:48px}
 button.primary{background:var(--acc);color:#fff;width:100%}
 button.ok{background:var(--ok);color:#fff}
 .top{display:flex;gap:8px;align-items:center;padding:12px;position:sticky;top:0;background:var(--bg);z-index:5}
@@ -20,7 +20,7 @@ button.ok{background:var(--ok);color:#fff}
 input,select{font:inherit;width:100%;padding:14px;border-radius:12px;border:1px solid #2a313a;background:var(--card);color:var(--fg);min-height:48px}
 input:focus,select:focus{outline:2px solid var(--acc)}
 .list{padding:0 12px 120px}
-.row{display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;background:var(--card);margin-bottom:8px;cursor:pointer;border:1px solid transparent}
+.row{display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;background:var(--card);margin-bottom:8px;cursor:pointer;border:1px solid #2a313a}
 .row.arrived{border-color:var(--ok)}
 .row .nm{flex:1;font-weight:600}
 .row .sub{font-size:13px;color:var(--mut);font-weight:400}
@@ -30,31 +30,38 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .vt{display:flex;gap:8px;margin:0 12px 10px}
 .vt button{flex:1;min-height:40px;padding:8px;font-size:14px;background:var(--card);border:1px solid #2a313a}
 .vt button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
-.grp{background:var(--card);border-radius:12px;margin-bottom:8px;overflow:hidden}
-.grp .row{margin-bottom:0;border-radius:0;background:none}
-.mlist{padding:2px 14px 12px 44px}
-.mem{font-size:13px;color:var(--mut);padding:3px 0}
+.grp{border:1px solid #2a313a;border-radius:12px;margin-bottom:8px;overflow:hidden}
+.grp.open{border-color:var(--acc)}
+.grp .row{margin-bottom:0}
+.mlist{padding:0;margin-top:8px}
+.mlist .row:last-child{margin-bottom:0}
+.mlist .row{background:#1f242c;margin-bottom:8px}
+.mlist .row .mark{background:#3a4451}
+.mlist .row.arrived .mark{background:var(--ok)}
+.chev{padding-left:8px;align-self:stretch;display:flex;align-items:center;justify-content:center}
+.chev::after{content:'';width:0;height:0;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent var(--mut);transition:transform .15s}
+.chev.open::after{transform:rotate(90deg)}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
 .pane h2{margin:0 0 12px;font-size:20px}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
-.stat{background:var(--card);border-radius:12px;padding:16px}
+.stat{background:var(--card);border:1px solid #2a313a;border-radius:12px;padding:16px}
 .stat .v{font-size:28px;font-weight:700}
 .stat .l{font-size:13px;color:var(--mut)}
 .bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px}
-.bar .t{width:120px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .t{width:160px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar .f{flex:1;height:20px;background:var(--card);border-radius:6px;overflow:hidden}
 .bar .f i{display:block;height:100%;background:var(--acc)}
 .tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid #2a313a}
-.tabs button{flex:1;border-radius:0;background:none;padding:12px}
+.tabs button{flex:1;border-radius:0;background:none;border:0;padding:12px}
 .tabs button.on{color:var(--acc);font-weight:700}
 .offline{background:var(--warn);color:#000;text-align:center;padding:6px;font-size:13px}
 .pinwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px 24px 80px}
 .pinwrap input{text-align:center;font-size:24px;letter-spacing:8px;max-width:240px}
 .err{color:var(--err);font-size:14px;min-height:20px}
 .row.muted{opacity:.55}
-button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:1px solid #3a424d}
+button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 @keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.28)}28%{transform:scale(1)}42%{transform:scale(1.18)}56%{transform:scale(1)}}
 .dot{display:inline-block;font-size:18px;line-height:1;user-select:none;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;animation:beat 1s ease-in-out infinite}
 .dot.bad{animation-duration:.5s}
@@ -86,8 +93,9 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
     <span id="hgVer2" style="font-size:13px;color:var(--mut);font-weight:400"></span>
     <span id="liveDot" class="dot">❤️</span>
   </div>
-  <div class="count">пришло <b id="cArrived">0</b> / <span id="cTotal">0</span> <span id="cPct" style="color:var(--mut)"></span></div>
-  <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Группы</button></div>
+  <div class="count" id="countLine">пришло 0 / 0</div>
+  <div class="count" id="metLine" style="display:none"></div>
+  <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Команды</button></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/Barcode</button>
   <div id="list" class="list"></div>
@@ -134,7 +142,6 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   </div>
   <h2 style="font-size:16px">По типам билета</h2>
   <div id="sTypes"></div>
-  <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
 </div>
 
 <div id="srcPane" class="pane hide">
@@ -161,7 +168,6 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:
   </div>
   <button class="primary" onclick="doRefresh()">Подтянуть из Timepad</button>
   <div id="srcLog" class="err" style="color:var(--ok)"></div>
-  <button style="width:100%;margin-top:16px" onclick="closePanes()">Назад</button>
 </div>
 
 <div id="qrFlash" class="hide" onclick="this.classList.add('hide')" style="position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center">
@@ -323,7 +329,7 @@ async function pickEvent(){
     const d=document.createElement('div');d.className='row'+(e.hidden?' muted':'');
     d.innerHTML=`<div class="nm">${esc(e.event)}<div class="sub">${e.arrived}/${e.total} пришло${e.hidden?' · скрыто':''}</div></div>`;
     const b1=document.createElement('button');b1.className='mini';
-    b1.textContent=e.hidden?'↩':'✏';
+    b1.textContent=e.hidden?'↩':'📝';
     b1.onclick=ev=>{ev.stopPropagation();e.hidden?toggleEventHidden(e.event,false):renameEvent(e.event);};
     const b2=document.createElement('button');b2.className='mini';
     b2.textContent=e.hidden?'':'👁';
@@ -385,6 +391,7 @@ async function refresh(){
     clearInterval(timer);timer=setInterval(refresh,2500);
     render();
   }catch(e){
+    if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();showPin();return;}
     setLive(false);
     clearInterval(timer);timer=setInterval(refresh,800);
     render();
@@ -402,24 +409,88 @@ function filtered(){
 }
 
 let viewG=[];
+const expanded=new Set(); // открытые составы в виде «Группы»
+// группа = командный билет по названию команды или типу билета:
+// так группы не обнуляются на данных, импортированных до появления поля team
+// тип билета главнее: сольный билет с мусором в колонке «название команды» — не группа
+const isTeam=g=>/командн/i.test(g.ticket_type||'')||(!g.ticket_type&&!!g.team);
+// люди для отображения: члены команды, либо сам гость (соло/команда без состава)
+function roster(g){
+  // у соло единственный человек — сам гость, даже если в выгрузке есть «состав»
+  if(!isTeam(g))return [{n:g.name,on:!!g.arrived_at}];
+  const names=(g.members&&g.members.length)?g.members:[g.name];
+  // у группы приход только поимённый: член отмечен лишь если записан явно
+  const m=g.member_arrived||{};
+  return names.map(n=>({n,on:!!m[n]}));
+}
+// полный снапшот отметок членов; flip — переключить одного, без него — разом все
+function memberSnap(g,flip){
+  const r=roster(g),m={};
+  r.forEach(x=>m[x.n]=x.on);
+  if(flip!==undefined)m[flip]=!m[flip];
+  else{const all=r.every(x=>x.on);r.forEach(x=>m[x.n]=!all);}
+  return m;
+}
+async function pushMembers(g,members){
+  g.member_arrived=members;saveCache();render();
+  const body={event,guest_id:g.id,members};
+  if(navigator.onLine){
+    try{await api('/api/member',{method:'POST',body});return;}catch(e){}
+  }
+  qpush({t:'member',...body});saveQueue();updateQueueN();
+}
+// countLine: в виде участников — люди, в виде групп — все билеты
+// (соло + капитаны команд), плюс метрики средних по тру-группам
+function countLine(){
+  const pct=(a,n)=>n?'('+Math.round(a/n*100)+'%)':'';
+  const met=document.getElementById('metLine');
+  if(viewMode==='groups'){
+    const teams=guests.filter(isTeam),ta=guests.filter(g=>g.arrived_at).length;
+    const solos=guests.length-teams.length;
+    const sizes=teams.map(g=>Math.max(1,(g.members||[]).length));
+    const arrs=teams.map(g=>roster(g).filter(x=>x.on).length);
+    const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
+    const as=mean(sizes),aa=mean(arrs);
+    if(teams.length){
+      met.innerHTML='в среднем в тру-группе: '+as.toFixed(1)+' чел · пришло '+aa.toFixed(1)+' ('+(as?Math.round(aa/as*100):0)+'%)';
+      met.style.display='';
+    }else met.style.display='none';
+    return 'групп: пришло <b>'+ta+'</b> / '+guests.length+' '+pct(ta,guests.length)+' · сольных: '+solos+' · командных: '+teams.length;
+  }
+  const people=gs=>gs.reduce((s,g)=>s+Math.max(1,(g.members||[]).length),0);
+  const a=people(guests.filter(g=>g.arrived_at)),n=people(guests);
+  const arrT=guests.filter(g=>g.arrived_at).length;
+  met.innerHTML='людей: пришло <b>'+a+'</b> / '+n+' '+pct(a,n);
+  met.style.display='';
+  return 'билетов: пришло <b>'+arrT+'</b> / '+guests.length+' '+pct(arrT,guests.length);
+}
 function render(){
   updateScanCount();
   const list=document.getElementById('list');
   const gs=filtered();
   gs.sort((a,b)=>((a.arrived_at?1:0)-(b.arrived_at?1:0))||((a.name||'')<(b.name||'')?-1:(a.name||'')>(b.name||'')?1:0));
   viewG=gs;
-  const arrived=guests.filter(g=>g.arrived_at).length;
-  document.getElementById('cArrived').textContent=arrived;
-  document.getElementById('cTotal').textContent=guests.length;
-  document.getElementById('cPct').textContent=guests.length?'('+Math.round(arrived/guests.length*100)+'%)':'';
+  document.getElementById('countLine').innerHTML=countLine();
   let html='';
   for(let i=0;i<gs.length;i++){
     const g=gs[i];
     const row=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
-    if(viewMode==='groups'&&g.team){
-      const mem=(g.members||[]).map(m=>`<div class="mem">${esc(m)}</div>`).join('');
-      const n=(g.members||[]).length;
-      html+=`<div class="grp"><div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.team)}<div class="sub">Капитан: ${esc(g.name)}${n?' · '+n+' чел.':''}${g.ticket_type?' · '+esc(g.ticket_type):''}</div></div></div>${mem?`<div class="mlist">${mem}</div>`:''}</div>`;
+    if(viewMode==='groups'){
+      const team=isTeam(g);
+      const open=expanded.has(g.id);
+      const r=roster(g);
+      let body='';
+      if(open){
+        const rows=r.map((x,mi)=>{
+          // подпись одинакова у всех строк: билет команды у членов тот же, что у капитана
+          const sub=`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
+          return `<div class="row${x.on?' arrived':''}"${team?` data-mem="${mi}" data-mi="${i}"`:` data-solo="${i}"`}><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
+        }).join('');
+        body=`<div class="mlist">${rows}</div>`;
+      }
+      const title=team?(g.team||g.name):g.name;
+      const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
+      html+=`<div class="grp${open?' open':''}"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev${open?' open':''}"></span></div>${body}</div>`;
     }else{
       html+=row;
     }
@@ -433,11 +504,25 @@ async function tap(g){
   if(g.arrived_at){
     if(!confirm('Уже отмечен. Снять отметку?'))return;
     qpush({t:'undo',event,guest_id:g.id});g.arrived_at='';
+    markCaptain(g,false);
   }else{
     g.arrived_at=new Date().toISOString();
     qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'tap'});
+    markCaptain(g,true);
   }
   render();await flushQueue();
+}
+// тап по человеку в списке отмечает только его: у группы — капитана поимённо
+function markCaptain(g,on){
+  if(!isTeam(g))return;
+  const names=(g.members&&g.members.length)?g.members:[g.name];
+  const prev=g.member_arrived||{};
+  const m={};names.forEach(n=>m[n]=!!prev[n]);
+  // в составе капитан записан ФИО иначе, чем имя гостя: берём точное совпадение
+  // или первого члена — Timepad всегда ставит капитана первым
+  m[names.includes(g.name)?g.name:names[0]]=on;
+  g.member_arrived=m;saveCache();
+  qpush({t:'member',event,guest_id:g.id,members:m});saveQueue();updateQueueN();
 }
 
 function deviceName(){
@@ -455,6 +540,7 @@ async function flushQueue(){
       if(item.t==='undo')await api('/api/undo',{method:'POST',body:{event:item.event,guest_id:item.guest_id}});
       if(item.t==='add')await api('/api/guest',{method:'POST',body:item.payload});
       if(item.t==='qrmiss')await api('/api/qrmiss',{method:'POST',body:{event:item.event,code:item.code}});
+      if(item.t==='member')await api('/api/member',{method:'POST',body:{event:item.event,guest_id:item.guest_id,members:item.members}});
     }catch(e){queue.push(item);}
   }
   saveQueue();
@@ -762,8 +848,29 @@ window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
 function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getElementById(id)).filter(Boolean);if(els.length&&els.every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
 loadVer();
-setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
-document.getElementById('list').addEventListener('click',e=>{const r=e.target.closest('.row');if(r&&viewG[+r.dataset.i])tap(viewG[+r.dataset.i]);});
+setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>{if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();showPin();}else setLive(false);});},2500);
+document.getElementById('list').addEventListener('click',e=>{
+  const mg=e.target.closest('[data-mem]');
+  if(mg){
+    const g=viewG[+mg.dataset.mi];
+    const x=g&&roster(g)[+mg.dataset.mem];
+    if(x){
+      if(x.on&&!confirm('Уже отмечен. Снять отметку?'))return;
+      pushMembers(g,memberSnap(g,x.n));
+    }
+    return;
+  }
+  const sb=e.target.closest('[data-solo]');
+  if(sb){tap(viewG[+sb.dataset.solo]);return;}
+  const r=e.target.closest('.row');
+  if(!r||!viewG[+r.dataset.i])return;
+  const g=viewG[+r.dataset.i];
+  if(r.classList.contains('grow')){
+    expanded.has(g.id)?expanded.delete(g.id):expanded.add(g.id);
+    render();return;
+  }
+  tap(g);
+});
 syncView();
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
 // service worker: при потере сети страница переживает свайп-обновление и F5

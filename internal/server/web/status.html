@@ -18,6 +18,8 @@ h1{font-size:18px;margin:2px 0 10px;display:flex;gap:10px;align-items:center}
 .big{font-size:20px;font-weight:600}
 @media (max-width:720px){.grid{grid-template-columns:1fr}}
 .mut{color:var(--mut);font-size:14px}
+#bakAuto{margin-bottom:5px}
+#bakManual{margin-bottom:12px}
 .heart{display:inline-block;transform-origin:center;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;animation:beat 1s ease-in-out infinite}
 .heart.off{animation-duration:.5s}
 @keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.28)}28%{transform:scale(1)}42%{transform:scale(1.18)}56%{transform:scale(1)}}
@@ -28,9 +30,6 @@ ul.ips{list-style:none;margin:6px 0 0;padding:0}
 ul.ips li{margin:3px 0}
 #events li{font-size:13px}
 a{color:var(--acc);word-break:break-all}
-.pin{font:600 26px/1 ui-monospace,monospace;letter-spacing:4px}
-form{display:flex;gap:8px;margin-top:8px}
-input{font:inherit;flex:1;min-width:0;padding:10px;border-radius:12px;border:1px solid #2a313a;background:#12161b;color:var(--fg);min-height:40px}
 button{font:inherit;border:0;border-radius:12px;padding:10px 16px;background:var(--acc);color:#fff;cursor:pointer;min-height:40px}
 button:disabled{opacity:.5}
 .msg{margin-top:6px;font-size:14px}
@@ -68,16 +67,6 @@ button:disabled{opacity:.5}
   <div class="card">
     <div class="label">Доступен по</div>
     <ul class="ips" id="ips"><li class="mut">—</li></ul>
-  </div>
-
-  <div class="card" id="pinCard">
-    <div class="label">PIN админ-панели</div>
-    <div class="pin" id="pinValue">••••••</div>
-    <form id="pinForm" hidden>
-      <input id="pinInput" inputmode="numeric" autocomplete="off" placeholder="введите PIN">
-      <button>Запомнить</button>
-    </form>
-    <div class="msg" id="pinMsg"></div>
   </div>
 
   <div class="card span">
@@ -129,14 +118,6 @@ async function poll() {
       : '<li class="mut">нет подключённых сетей</li>';
     $('bakAuto').textContent = 'авто: ' + (s.backup_auto || '—');
     $('bakManual').textContent = 'вручную: ' + (s.backup_manual || '—');
-    if (s.pin) {
-      $('pinValue').textContent = s.pin;
-      $('pinValue').hidden = false;
-      $('pinForm').hidden = true;
-    } else {
-      $('pinValue').hidden = true;
-      $('pinForm').hidden = false;
-    }
   } catch {
     down();
   }
@@ -189,19 +170,6 @@ async function life(path, btn, text) {
 }
 $('restartBtn').addEventListener('click', () => life('/api/admin/restart', $('restartBtn'), 'перезапускаю…'));
 $('stopBtn').addEventListener('click', () => life('/api/admin/stop', $('stopBtn'), 'останавливаю…'));
-
-$('pinForm').addEventListener('submit', async ev => {
-  ev.preventDefault();
-  const r = await fetch('/api/status/pin', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({pin: $('pinInput').value})
-  });
-  const msg = $('pinMsg');
-  if (r.ok) { msg.className = 'msg ok'; msg.textContent = 'PIN сохранён'; $('pinInput').value = ''; }
-  else { const e = await r.json().catch(() => ({})); msg.className = 'msg err'; msg.textContent = e.error || 'ошибка'; }
-  poll();
-});
 
 $('bakBtn').addEventListener('click', async () => {
   const btn = $('bakBtn'), msg = $('bakMsg');

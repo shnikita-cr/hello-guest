@@ -139,6 +139,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/events", s.authed(s.handleEvents))
 	s.mux.HandleFunc("/api/state", s.authed(s.handleState))
 	s.mux.HandleFunc("/api/checkin", s.authed(s.handleCheckin))
+	s.mux.HandleFunc("/api/member", s.authed(s.handleMember))
 	s.mux.HandleFunc("/api/undo", s.authed(s.handleUndo))
 	s.mux.HandleFunc("/api/guest", s.authed(s.handleGuest))
 	s.mux.HandleFunc("/api/import", s.authed(s.handleImport))
@@ -156,7 +157,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/status", s.local(s.handleStatusPage))
 	s.mux.HandleFunc("/reset", s.handleReset)
 	s.mux.HandleFunc("/api/status", s.local(s.handleStatusAPI))
-	s.mux.HandleFunc("/api/status/pin", s.local(s.handleStatusPin))
 	s.mux.HandleFunc("/api/admin/backup", s.local(s.handleBackupNow))
 	s.mux.HandleFunc("/api/admin/stop", s.local(s.handleStop))
 	s.mux.HandleFunc("/api/admin/restart", s.local(s.handleRestart))
@@ -288,7 +288,6 @@ func (s *Server) handleStatusAPI(w http.ResponseWriter, r *http.Request) {
 		"version": Version,
 		"clients": s.clients(),
 		"ips":     s.StatusIPs,
-		"pin":     s.cfg.PinPlain,
 		"uptime":  int(time.Since(s.started).Seconds()),
 		"backup":  s.TriggerBackup != nil,
 		"backup_auto": func() string {
@@ -321,29 +320,6 @@ func requirePost(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	return true
-}
-
-func (s *Server) handleStatusPin(w http.ResponseWriter, r *http.Request) {
-	if !requirePost(w, r) {
-		return
-	}
-	var body struct {
-		Pin string `json:"pin"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Pin == "" {
-		writeErr(w, http.StatusBadRequest, "bad body")
-		return
-	}
-	if !s.cfg.Check(body.Pin) {
-		writeErr(w, http.StatusBadRequest, "неверный pin")
-		return
-	}
-	s.cfg.PinPlain = body.Pin
-	if err := s.cfg.save(s.dataDir); err != nil {
-		writeErr(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleBackupNow(w http.ResponseWriter, r *http.Request) {
@@ -475,6 +451,32 @@ func (s *Server) handleCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "already": already})
+}
+
+// handleMember: снапшот отметок прихода по членам группы.
+func (s *Server) handleMember(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	var req struct {
+		Event   string          `json:"event"`
+		Guest   string          `json:"guest_id"`
+		Members map[string]bool `json:"members"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	if err := s.store.SetMembers(req.Event, req.Guest, req.Members, s.now()); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "guest not found")
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleUndo(w http.ResponseWriter, r *http.Request) {

@@ -14,33 +14,37 @@ import (
 )
 
 type Guest struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Email        string   `json:"email,omitempty"`
-	Phone        string   `json:"phone,omitempty"`
-	TicketType   string   `json:"ticket_type,omitempty"`
-	Team         string   `json:"team,omitempty"`
-	Members      []string `json:"members,omitempty"`
-	OrderID      string   `json:"order_id,omitempty"`
-	TicketNumber string   `json:"ticket_number,omitempty"`
-	Barcode      string   `json:"barcode,omitempty"`
-	Source       string   `json:"source,omitempty"`
-	Status       string   `json:"status,omitempty"`
-	ArrivedAt    string   `json:"arrived_at,omitempty"`
-	Event        string   `json:"event"`
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Email      string   `json:"email,omitempty"`
+	Phone      string   `json:"phone,omitempty"`
+	TicketType string   `json:"ticket_type,omitempty"`
+	Team       string   `json:"team,omitempty"`
+	Members    []string `json:"members,omitempty"`
+	// MemberArrived — отметки прихода по членам группы (полный снапшот);
+	// пустая карта = члены следуют arrived_at билета
+	MemberArrived map[string]bool `json:"member_arrived,omitempty"`
+	OrderID       string          `json:"order_id,omitempty"`
+	TicketNumber  string          `json:"ticket_number,omitempty"`
+	Barcode       string          `json:"barcode,omitempty"`
+	Source        string          `json:"source,omitempty"`
+	Status        string          `json:"status,omitempty"`
+	ArrivedAt     string          `json:"arrived_at,omitempty"`
+	Event         string          `json:"event"`
 }
 
 type Record struct {
-	Kind    string    `json:"kind"`
-	Event   string    `json:"event"`
-	TS      time.Time `json:"ts"`
-	Guest   *Guest    `json:"guest,omitempty"`
-	Device  string    `json:"device,omitempty"`
-	GuestID string    `json:"guest_id,omitempty"`
-	New     string    `json:"new,omitempty"`    // rename_event: новое имя события
-	Hidden  *bool     `json:"hidden,omitempty"` // event_meta: скрыть/показать событие
-	Via     string    `json:"via,omitempty"`    // checkin: qr | tap
-	Code    string    `json:"code,omitempty"`   // qrmiss: распознанный код билета
+	Kind    string          `json:"kind"`
+	Event   string          `json:"event"`
+	TS      time.Time       `json:"ts"`
+	Guest   *Guest          `json:"guest,omitempty"`
+	Device  string          `json:"device,omitempty"`
+	GuestID string          `json:"guest_id,omitempty"`
+	New     string          `json:"new,omitempty"`     // rename_event: новое имя события
+	Hidden  *bool           `json:"hidden,omitempty"`  // event_meta: скрыть/показать событие
+	Via     string          `json:"via,omitempty"`     // checkin: qr | tap
+	Code    string          `json:"code,omitempty"`    // qrmiss: распознанный код билета
+	Members map[string]bool `json:"members,omitempty"` // member: снапшот отметок членов
 }
 
 type Store struct {
@@ -113,8 +117,13 @@ func (s *Store) apply(r *Record) {
 		if g.Barcode == "" {
 			g.Barcode = BarcodeFromTicket(g.TicketNumber)
 		}
-		if prev, ok := s.guests[r.Event][g.ID]; ok && prev.ArrivedAt != "" && g.ArrivedAt == "" {
-			g.ArrivedAt = prev.ArrivedAt
+		if prev, ok := s.guests[r.Event][g.ID]; ok {
+			if prev.ArrivedAt != "" && g.ArrivedAt == "" {
+				g.ArrivedAt = prev.ArrivedAt
+			}
+			if g.MemberArrived == nil && prev.MemberArrived != nil {
+				g.MemberArrived = prev.MemberArrived
+			}
 		}
 		s.guests[r.Event][g.ID] = &g
 		if g.Source == "walkin" {
@@ -140,6 +149,10 @@ func (s *Store) apply(r *Record) {
 		}
 	case "qrmiss":
 		s.qrmiss[r.Event] = append(s.qrmiss[r.Event], *r)
+	case "member":
+		if g, ok := s.guests[r.Event][r.GuestID]; ok {
+			g.MemberArrived = r.Members
+		}
 	case "rename_event":
 		if r.New == "" || r.Event == r.New {
 			return
@@ -228,6 +241,25 @@ func (s *Store) Checkin(event, guestID, device, via string, now time.Time) (alre
 	}
 	s.apply(&r)
 	return false, nil
+}
+
+// SetMembers сохраняет снапшот отметок прихода по членам группы.
+func (s *Store) SetMembers(event, guestID string, members map[string]bool, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ev := s.guests[event]
+	if ev == nil {
+		return ErrNotFound
+	}
+	if _, ok := ev[guestID]; !ok {
+		return ErrNotFound
+	}
+	r := Record{Kind: "member", Event: event, TS: now.UTC(), GuestID: guestID, Members: members}
+	if err := s.append(&r); err != nil {
+		return err
+	}
+	s.apply(&r)
+	return nil
 }
 
 // QRMiss фиксирует сканирование ненайденного QR-кода.

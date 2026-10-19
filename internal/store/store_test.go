@@ -103,6 +103,40 @@ func TestReimportPreservesArrival(t *testing.T) {
 	}
 }
 
+func TestMemberSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "data.ndjson")
+	s1, _ := Open(path)
+	s1.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A", Members: []string{"A", "B", "C"}}})
+	err := s1.SetMembers("e1", "g1", map[string]bool{"A": true, "B": false, "C": false}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// реимпорт без member-полей не должен затирать снапшот
+	s1.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A", Members: []string{"A", "B", "C"}, TicketType: "Командный билет"}})
+	s1.Close()
+
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	gs := s2.Search("e1", "a")
+	if len(gs) != 1 {
+		t.Fatalf("search: %+v", gs)
+	}
+	ma := gs[0].MemberArrived
+	if len(ma) != 3 || !ma["A"] || ma["B"] || ma["C"] {
+		t.Fatalf("member snapshot lost/wrong: %+v", ma)
+	}
+	if err := s2.SetMembers("e1", "g1", nil, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if gs := s2.Search("e1", "a"); gs[0].MemberArrived != nil {
+		t.Fatalf("clearing snapshot failed: %+v", gs[0].MemberArrived)
+	}
+}
+
 func TestUndoCheckin(t *testing.T) {
 	s := tempStore(t)
 	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "A"}})
