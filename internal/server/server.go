@@ -140,6 +140,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/state", s.authed(s.handleState))
 	s.mux.HandleFunc("/api/checkin", s.authed(s.handleCheckin))
 	s.mux.HandleFunc("/api/member", s.authed(s.handleMember))
+	s.mux.HandleFunc("/api/team", s.authed(s.handleTeam))
 	s.mux.HandleFunc("/api/undo", s.authed(s.handleUndo))
 	s.mux.HandleFunc("/api/guest", s.authed(s.handleGuest))
 	s.mux.HandleFunc("/api/import", s.authed(s.handleImport))
@@ -469,6 +470,32 @@ func (s *Server) handleMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.SetMembers(req.Event, req.Guest, req.Members, s.now()); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "guest not found")
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleTeam(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	var req struct {
+		Event   string   `json:"event"`
+		Guest   string   `json:"guest_id"`
+		Team    string   `json:"team"`
+		Members []string `json:"members"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad json")
+		return
+	}
+	if err := s.store.SetTeam(req.Event, req.Guest, req.Team, req.Members, s.now()); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeErr(w, http.StatusNotFound, "guest not found")
 			return

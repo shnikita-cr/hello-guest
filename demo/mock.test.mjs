@@ -83,6 +83,14 @@ assert.deepEqual(await api('/api/member', { method: 'POST', body: JSON.stringify
 let persisted = (await api('/api/state?event=' + encodeURIComponent(EV)))[1].guests.find(g => g.id === 'g6');
 assert.equal(persisted.member_arrived['Шаров Пётр Игоревич'], true, 'member_arrived сохранился в состоянии');
 
+// состав команды: добавление человека
+let [tst, tam] = await api('/api/team', { method: 'POST', body: JSON.stringify({ event: EV, guest_id: 'g11', team: 'Тёплый стан', members: ['Павлова Лариса Сергеевна', 'Белова Ксения Андреевна', 'Рогов Денис Павлович', 'Новикова Ирина Петровна'] }) });
+assert.deepEqual([tst, tam.ok], [200, true]);
+persisted = (await api('/api/state?event=' + encodeURIComponent(EV)))[1].guests.find(g => g.id === 'g11');
+assert.equal(persisted.members.length, 4, 'человек добавился в состав');
+assert.equal(persisted.team, 'Тёплый стан');
+assert.deepEqual(await api('/api/team', { method: 'POST', body: JSON.stringify({ event: EV, guest_id: 'nope', members: [] }) }), [404, { error: 'guest not found' }]);
+
 // прогулочный гость
 const [gst, add] = await api('/api/guest', { method: 'POST', body: JSON.stringify({ event: EV, name: 'Прохожий', ticket_type: 'Стандарт' }) });
 assert.equal(gst, 200);

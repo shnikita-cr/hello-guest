@@ -262,6 +262,29 @@ func (s *Store) SetMembers(event, guestID string, members map[string]bool, now t
 	return nil
 }
 
+// SetTeam меняет название и состав команды (ручное добавление людей).
+func (s *Store) SetTeam(event, guestID, team string, members []string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ev := s.guests[event]
+	if ev == nil {
+		return ErrNotFound
+	}
+	g, ok := ev[guestID]
+	if !ok {
+		return ErrNotFound
+	}
+	gg := *g
+	gg.Team = team
+	gg.Members = members
+	r := Record{Kind: "upsert", Event: event, TS: now.UTC(), Guest: &gg}
+	if err := s.append(&r); err != nil {
+		return err
+	}
+	s.apply(&r)
+	return nil
+}
+
 // QRMiss фиксирует сканирование ненайденного QR-кода.
 func (s *Store) QRMiss(event, code string) error {
 	s.mu.Lock()
