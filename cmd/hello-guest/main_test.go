@@ -11,6 +11,23 @@ import (
 	"time"
 )
 
+func TestShortVersion(t *testing.T) {
+	cases := map[string]string{
+		"v1.5.0":        "1.5",
+		"v1.5.0-dirty":  "1.5",
+		"1.5.0":         "1.5",
+		"v1.6":          "1.6",
+		"dev":           "dev",
+		"8fb9321":       "8fb9321",
+		"v1.5.0-3-gabc": "1.5",
+	}
+	for in, want := range cases {
+		if got := shortVersion(in); got != want {
+			t.Errorf("shortVersion(%q) = %q, ждали %q", in, got, want)
+		}
+	}
+}
+
 func TestStripFlags(t *testing.T) {
 	got := stripFlags([]string{"-d", "--open", "--addr", ":8080", "-open=1"}, "-d", "--d", "-open", "--open")
 	want := "--addr :8080"

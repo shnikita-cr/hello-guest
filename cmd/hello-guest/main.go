@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -27,6 +28,14 @@ import (
 )
 
 var version = "dev"
+
+// короткая версия без patch: v1.5.0-dirty → 1.5; dev и хэши как есть
+func shortVersion(v string) string {
+	if m := regexp.MustCompile(`^v?(\d+)\.(\d+)`).FindStringSubmatch(v); m != nil {
+		return m[1] + "." + m[2]
+	}
+	return strings.TrimPrefix(v, "v")
+}
 
 // daemonMode: фоновый ребёнок пишет стартовый вывод сам, в файл журнала
 // с меткой времени; обычный режим — в консоль.
@@ -95,7 +104,7 @@ func main() {
 	}
 	defer st.Close()
 
-	server.Version = strings.TrimPrefix(version, "v")
+	server.Version = shortVersion(version)
 	srv := server.New(cfg, st, *data)
 
 	// бэкапы каталога данных: каждые 5 минут zip, хранятся последние 20
