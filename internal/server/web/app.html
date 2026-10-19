@@ -10,7 +10,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font:16px/1.4 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
 .hide{display:none!important}
-button{font:inherit;border:0;border-radius:12px;padding:14px 16px;background:var(--card);color:var(--fg);cursor:pointer;min-height:48px}
+button{font:inherit;border:1px solid #2a313a;border-radius:12px;padding:14px 16px;background:var(--card);color:var(--fg);cursor:pointer;min-height:48px}
 button.primary{background:var(--acc);color:#fff;width:100%}
 button.ok{background:var(--ok);color:#fff}
 .top{display:flex;gap:8px;align-items:center;padding:12px;position:sticky;top:0;background:var(--bg);z-index:5}
@@ -46,7 +46,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:13px;color:var(--mut);margin-bottom:4px}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
-.stat{background:var(--card);border-radius:12px;padding:16px}
+.stat{background:var(--card);border:1px solid #2a313a;border-radius:12px;padding:16px}
 .stat .v{font-size:28px;font-weight:700}
 .stat .l{font-size:13px;color:var(--mut)}
 .bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px}
@@ -54,14 +54,14 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .bar .f{flex:1;height:20px;background:var(--card);border-radius:6px;overflow:hidden}
 .bar .f i{display:block;height:100%;background:var(--acc)}
 .tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid #2a313a}
-.tabs button{flex:1;border-radius:0;background:none;padding:12px}
+.tabs button{flex:1;border-radius:0;background:none;border:0;padding:12px}
 .tabs button.on{color:var(--acc);font-weight:700}
 .offline{background:var(--warn);color:#000;text-align:center;padding:6px;font-size:13px}
 .pinwrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;padding:24px 24px 80px}
 .pinwrap input{text-align:center;font-size:24px;letter-spacing:8px;max-width:240px}
 .err{color:var(--err);font-size:14px;min-height:20px}
 .row.muted{opacity:.55}
-button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px;border:1px solid #3a424d}
+button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 @keyframes beat{0%,100%{transform:scale(1)}14%{transform:scale(1.28)}28%{transform:scale(1)}42%{transform:scale(1.18)}56%{transform:scale(1)}}
 .dot{display:inline-block;font-size:18px;line-height:1;user-select:none;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;animation:beat 1s ease-in-out infinite}
 .dot.bad{animation-duration:.5s}
