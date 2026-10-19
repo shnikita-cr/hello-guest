@@ -26,6 +26,8 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .row .sub{font-size:13px;color:var(--mut);font-weight:400}
 .row .mark{width:14px;height:14px;border-radius:50%;background:#2a313a}
 .row.arrived .mark{background:var(--ok)}
+.row .mark.full{background:var(--ok)}
+.row .mark.half{background:linear-gradient(to right,var(--ok) 50%,#2a313a 50%)}
 .row.dup{border-color:var(--warn)}
 .vt{display:flex;gap:8px;margin:0 12px 10px}
 .vt button{flex:1;min-height:40px;padding:8px;font-size:14px;background:var(--card);border:1px solid #2a313a}
@@ -80,7 +82,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 <div class="tabs">
   <button id="tabPin" onclick="showPin()">Вход</button>
   <button class="on hide" id="tabList" onclick="showTab('list')">Список</button>
-  <button class="hide" id="tabAdd" onclick="openAdd()">+ Гость</button>
+  <button class="hide" id="tabAdd" onclick="addTab()">+ Гость</button>
   <button id="tabStats" onclick="openStats()">Статистика</button>
   <button class="hide" id="tabSrc" onclick="openSrc()">Источники</button>
 </div>
@@ -95,8 +97,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   </div>
   <div class="count" id="countLine">пришло 0 / 0</div>
   <div class="count" id="metLine" style="display:none"></div>
-  <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Команды</button></div>
-  <button id="btnAddTeam" class="hide" style="margin:0 12px 8px;width:calc(100% - 24px)" onclick="addGroup()">+ Группа</button>
+  <div class="vt"><button id="vwAll" onclick="setView('all')">Гости</button><button id="vwGrp" onclick="setView('groups')">Команды</button></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/штрих-код</button>
   <div id="list" class="list"></div>
@@ -104,8 +105,8 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="eventPane" class="pane hide">
   <div id="offlineBar2" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <h2 style="flex:1;margin:0">Мероприятия</h2>
+  <div style="display:flex;align-items:center;gap:8px">
+    <h2 style="flex:1">Мероприятия</h2>
     <span id="hgVer3" style="font-size:13px;color:var(--mut);font-weight:400"></span>
     <span id="liveDot2" class="dot">❤️</span>
   </div>
@@ -115,7 +116,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="addPane" class="pane hide">
   <div id="offlineBar3" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN3">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Новый гость</h2><span id="liveDot4" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Новый гость</h2><span id="liveDot4" class="dot">❤️</span></div>
   <div class="field"><label>Имя *</label><input id="aName"></div>
   <div class="field"><label>Телефон</label><input id="aPhone" type="tel"></div>
   <div class="field"><label>Email</label><input id="aEmail" type="email"></div>
@@ -128,7 +129,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="statsPane" class="pane hide">
   <div id="offlineBar4" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN4">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Статистика</h2><span id="liveDot5" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Статистика</h2><span id="liveDot5" class="dot">❤️</span></div>
   <div class="stats">
     <div class="stat"><div class="v" id="sArrived">0</div><div class="l">пришло</div></div>
     <div class="stat"><div class="v" id="sTotal">0</div><div class="l">всего</div></div>
@@ -147,7 +148,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="srcPane" class="pane hide">
   <div id="offlineBar5" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN5">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Источники</h2><span id="liveDot6" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Источники</h2><span id="liveDot6" class="dot">❤️</span></div>
   <p style="color:var(--mut);font-size:14px">Импорт выгрузки Timepad (CSV или XLSX) или подтягивание через API в текущее мероприятие.</p>
   <div class="field">
     <label>Мероприятие (куда загружать)</label>
@@ -181,7 +182,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <div id="offlineBar6" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN6">0</span> в очереди</div>
   <div style="max-width:640px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:8px">
-      <h2 style="flex:1;margin:0">Сканер QR</h2>
+      <h2 style="flex:1">Сканер QR</h2>
       <span id="liveDot3" class="dot">❤️</span>
     </div>
     <video id="qrVideo" autoplay playsinline muted style="width:100%;max-height:50vh;object-fit:cover;border-radius:12px;background:#111"></video>
@@ -232,7 +233,7 @@ function renderTabs(){
   document.getElementById('tabSrc').classList.toggle('hide',!authed);
   updateTabAdd();
 }
-// «+ Гость» и «Статистика» — внутри мероприятия, включая экраны этих вкладок
+// «+ Гость»/«+ Группа» и «Статистика» — внутри мероприятия, включая экраны этих вкладок
 function updateTabAdd(){
   const on=!!localStorage.getItem('hg_pin')&&!!event&&['app','addPane','statsPane'].includes(screen);
   document.getElementById('tabAdd').classList.toggle('hide',!on);
@@ -405,7 +406,7 @@ function setView(m){viewMode=m;localStorage.setItem('hg_view',m);syncView();rend
 function syncView(){
   document.getElementById('vwAll').classList.toggle('on',viewMode==='all');
   document.getElementById('vwGrp').classList.toggle('on',viewMode==='groups');
-  document.getElementById('btnAddTeam').classList.toggle('hide',viewMode!=='groups');
+  document.getElementById('tabAdd').textContent=viewMode==='groups'?'+ Группа':'+ Гость';
 }
 function filtered(){
   const s=q();
@@ -444,7 +445,7 @@ async function pushMembers(g,members){
   }
   qpush({t:'member',...body});saveQueue();updateQueueN();
 }
-// countLine: в виде участников — билеты плюс люди на metLine,
+// countLine: в виде гостей — билеты плюс люди на metLine,
 // в виде команд — только команды, метрики средних по тру-группам
 function countLine(){
   const pct=(a,n)=>n?'('+Math.round(a/n*100)+'%)':'';
@@ -455,10 +456,10 @@ function countLine(){
     const arrs=teams.map(g=>roster(g).filter(x=>x.on).length);
     const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
     const as=mean(sizes),aa=mean(arrs);
-    if(teams.length){
-      met.innerHTML='в среднем в тру-группе: '+as.toFixed(1)+' чел · пришло '+aa.toFixed(1)+' ('+(as?Math.round(aa/as*100):0)+'%)';
-      met.style.display='';
-    }else met.style.display='none';
+    met.innerHTML=teams.length
+      ?'в среднем в тру-группе: '+as.toFixed(1)+' чел · пришло '+aa.toFixed(1)+' ('+(as?Math.round(aa/as*100):0)+'%)'
+      :'в среднем в тру-группе: —';
+    met.style.display='';
     return 'команд: пришло <b>'+ta+'</b> / '+teams.length+' '+pct(ta,teams.length);
   }
   const people=gs=>gs.reduce((s,g)=>s+Math.max(1,(g.members||[]).length),0);
@@ -495,7 +496,9 @@ function render(){
       }
       const title=team?(g.team||g.name):g.name;
       const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
-      html+=`<div class="grp${open?' open':''}"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev${open?' open':''}"></span></div>${body}</div>`;
+      const on=r.filter(x=>x.on).length;
+      const mk=(g.arrived_at||on>0)?(on>=r.length?' full':' half'):'';
+      html+=`<div class="grp${open?' open':''}"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark${mk}"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev${open?' open':''}"></span></div>${body}</div>`;
     }else{
       html+=row;
     }
@@ -558,7 +561,7 @@ async function addGroup(){
 // человек в открытую группу: состав хранится на госте-владельце билета
 async function addMember(i){
   const g=viewG[i];if(!g)return;
-  const n=prompt('Имя нового участника');
+  const n=prompt('Имя нового гостя');
   if(!n||!n.trim())return;
   // у команды без состава в roster числится сам капитан — сохраняем его первым
   const members=(g.members&&g.members.length?g.members:[g.name]).concat([n.trim()]);
@@ -589,6 +592,7 @@ async function flushQueue(){
 }
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
+function addTab(){viewMode==='groups'?addGroup():openAdd();}
 
 let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrBlur=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
 
@@ -874,7 +878,7 @@ async function openStats(){
     d.innerHTML=`<div class="t">${esc(t)}</div><div class="f"><i style="width:${pct}%"></i></div><div>${v.a}/${v.n}</div>`;
     el.appendChild(d);
   });
-  // командные билеты и люди в их составах — отдельными строками
+  // люди в составах команд — отдельной строкой; билеты уже есть в разбивке по типам
   const teams=guests.filter(isTeam);
   if(teams.length){
     const bar=(label,a,b)=>{
@@ -882,7 +886,6 @@ async function openStats(){
       d.innerHTML=`<div class="t">${label}</div><div class="f"><i style="width:${b?Math.round(a/b*100):0}%"></i></div><div>${a}/${b}</div>`;
       el.appendChild(d);
     };
-    bar('Командные билеты',teams.filter(g=>g.arrived_at).length,teams.length);
     bar('Люди в командах',teams.reduce((s,g)=>s+roster(g).filter(x=>x.on).length,0),teams.reduce((s,g)=>s+roster(g).length,0));
   }
   try{
