@@ -31,13 +31,14 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .vt button{flex:1;min-height:40px;padding:8px;font-size:14px;background:var(--card);border:1px solid #2a313a}
 .vt button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
 .grp{border:1px solid #2a313a;border-radius:12px;margin-bottom:8px;overflow:hidden}
+.grp.open{border-color:var(--acc)}
 .grp .row{margin-bottom:0}
 .mlist{padding:0;margin-top:8px}
 .mlist .row:last-child{margin-bottom:0}
 .mlist .row{background:#2a313a;margin-bottom:8px}
 .mlist .row .mark{background:#3a4451}
 .mlist .row.arrived .mark{background:var(--ok)}
-.chev{color:var(--mut);font-weight:400;padding-left:8px}
+.chev{color:var(--mut);font-weight:400;padding-left:8px;font-size:48px;line-height:1}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
 .pane h2{margin:0 0 12px;font-size:20px}
 .field{margin-bottom:12px}
@@ -484,7 +485,7 @@ function render(){
       }
       const title=team?(g.team||g.name):g.name;
       const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
-      html+=`<div class="grp"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev">${open?'▾':'▸'}</span></div>${body}</div>`;
+      html+=`<div class="grp${open?' open':''}"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev">${open?'▾':'▸'}</span></div>${body}</div>`;
     }else{
       html+=row;
     }
