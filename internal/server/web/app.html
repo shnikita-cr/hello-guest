@@ -408,8 +408,9 @@ const expanded=new Set(); // открытые составы в виде «Гр�
 const isTeam=g=>!!g.team||/командн/i.test(g.ticket_type||'');
 // люди для отображения: члены команды, либо сам гость (соло/команда без состава)
 function roster(g){
+  // у соло единственный человек — сам гость, даже если в выгрузке есть «состав»
+  if(!isTeam(g))return [{n:g.name,on:!!g.arrived_at}];
   const names=(g.members&&g.members.length)?g.members:[g.name];
-  if(!isTeam(g))return names.map(n=>({n,on:!!g.arrived_at}));
   // у группы приход только поимённый: член отмечен лишь если записан явно
   const m=g.member_arrived||{};
   return names.map(n=>({n,on:!!m[n]}));
