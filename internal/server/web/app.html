@@ -472,13 +472,14 @@ function render(){
       let body='';
       if(open){
         const rows=r.map((x,mi)=>{
-          const sub=x.n===g.name?`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`:'';
+          // подпись одинакова у всех строк: билет команды у членов тот же, что у капитана
+          const sub=`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
           return `<div class="row${x.on?' arrived':''}"${team?` data-mem="${mi}" data-mi="${i}"`:` data-solo="${i}"`}><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
         }).join('');
         body=`<div class="mlist">${rows}</div>`;
       }
       const title=team?(g.team||g.name):g.name;
-      const sub=team?`Капитан: ${esc(g.name)}`:esc(g.ticket_type||'');
+      const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
       html+=`<div class="grp"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev">${open?'▾':'▸'}</span></div>${body}</div>`;
     }else{
       html+=row;
