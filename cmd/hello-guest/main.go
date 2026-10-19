@@ -87,10 +87,18 @@ func main() {
 		return
 	}
 
-	printf(`  _   _ _____ _   _  ____                  
- | | | |_   _| | | |/ ___| ___  ___  _ __   __| |  _ \| ___| / __||_   _| | |
- | |_| || |   | |_| || |    / _ \/ _ \| '_ \ / _` + "`" + ` | |_) |___ \\__ \_   _| |_| |_|
- |____/|_|   | \___/ |_|    \___/\___/|_| |_\__,_|____/|___/  |_|  \___/ \___/|
+	printf(`#   # ##### #     #      ### 
+#   # #     #     #     #   #
+##### ####  #     #     #   #
+#   # #     #     #     #   #
+#   # ##### ##### #####  ### 
+
+ #### #   # #####  #### #####
+#     #   # #     #       #  
+#  ## #   # ####   ####   #  
+#   # #   # #         #   #  
+ ####  ###  #####  ####   #  
+
 `)
 
 	cfg, pin, err := server.LoadOrCreateConfig(*data)
@@ -101,7 +109,7 @@ func main() {
 		pin = cfg.PinPlain
 	}
 	if pin != "" {
-		printf("\nPIN: %s\n\n", pin)
+		printf("PIN: %s\n\n", pin)
 	}
 
 	st, err := store.Open(*data + "/hello-guest.ndjson")
@@ -113,12 +121,12 @@ func main() {
 	server.Version = shortVersion(version)
 	srv := server.New(cfg, st, *data)
 
-	// бэкапы каталога данных: каждые 5 минут zip, хранятся последние 20
+	// резервные копии каталога данных: каждые 5 минут zip, хранятся последние 20
 	bk := backup.Runner{DataDir: *data, DestDir: *backupDir, Keep: 20, Every: 5 * time.Minute}
 	if !filepath.IsAbs(bk.DestDir) {
 		bk.DestDir = filepath.Join(*data, bk.DestDir)
 	}
-	bk.Start(nil, func(err error) { log.Printf("бэкап: %v", err) })
+	bk.Start(nil, func(err error) { log.Printf("резервная копия: %v", err) })
 	srv.TriggerBackup = func() (string, error) { return bk.Manual(time.Now()) }
 	srv.BackupTimes = bk.Times
 	listener, port := listen(*addr)
@@ -130,7 +138,7 @@ func main() {
 		ips = availableIPs()
 	}
 	srv.StatusIPs = ips
-	printf("Hello-Guest запущен успешно\n")
+	printf("Hello Guest запущен успешно\n")
 
 	// TLS на 8443: камера (сканер QR) работает только в secure context
 	var tlsL net.Listener
@@ -155,14 +163,7 @@ func main() {
 		}
 	}
 
-	printf("Бэкапы каждые 5 минут: %s\n", bk.DestDir)
-	if len(ips) > 0 {
-		for _, x := range ips {
-			printf("Адрес подключения: https://%s:8443\n", x)
-		}
-		printf("какая сеть у вас — разработчик не знает: подходит адрес, что открывается с планшета\n")
-		printf("Сброс браузера: https://%s:8443/reset\n", ips[0])
-	}
+	printf("Резервные копии каждые 5 минут: %s\n", bk.DestDir)
 
 	// Enter в консоли сворачивает окно в фон; у фонового процесса stdin закрыт
 	if !daemonMode {
@@ -178,6 +179,16 @@ func main() {
 				}
 			}
 		}()
+	}
+
+	if len(ips) > 0 {
+		printf("\n")
+		for _, x := range ips {
+			printf("Адрес подключения: https://%s:8443\n", x)
+		}
+		printf("Программа отображает адреса всех сетевых интерфейсов компьютера\n")
+		printf("Используйте адрес, доступный с планшета в локальной сети\n")
+		printf("Ссылка для сброса браузера: https://%s:8443/reset\n", ips[0])
 	}
 
 	// стоп и перезапуск — кнопками экрана статуса (только localhost)
@@ -215,7 +226,7 @@ func main() {
 		os.Exit(0)
 	}
 	if *openStatus {
-		openBrowser(fmt.Sprintf("http://127.0.0.1:%d/status", port))
+		openBrowser("https://127.0.0.1:8443/status")
 	}
 
 	go func() {
@@ -345,6 +356,7 @@ func listen(want string) (net.Listener, int) {
 
 // runningStatus: порт занят — не я ли сам? Файл status.port и живой
 // /api/version на нём означают «второй экземпляр уже работает».
+// Проверка идёт по http (внутренний порт), пользователю открываем https.
 func runningStatus(data string) (string, bool) {
 	b, err := os.ReadFile(filepath.Join(data, "status.port"))
 	if err != nil {
@@ -361,7 +373,7 @@ func runningStatus(data string) (string, bool) {
 		return "", false
 	}
 	resp.Body.Close()
-	return url + "/status", true
+	return "https://127.0.0.1:8443/status", true
 }
 
 func openBrowser(url string) {
