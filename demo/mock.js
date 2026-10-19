@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const PIN = '0000';
-  const KEY = 'hg_demo_v1';
+  const KEY = 'hg_demo_v2';
   const EV = 'Демо-мероприятие';
   const ARCHIVE = 'Архив (демо)';
   const realFetch = window.fetch.bind(window);
@@ -16,34 +16,45 @@
   }
 
   function seed() {
+    // [имя, тип билета, телефон, название команды?, состав команды?]
     const rows = [
       ['Анна Петрова', 'VIP', '+7 900 111-11-11'],
-      ['Борис Смирнов', 'Стандарт', '+7 900 222-22-22'],
+      ['Борис Смирнов', 'Командный билет', '+7 900 222-22-22', 'Орбита',
+        ['Смирнов Борис Олегович', 'Титова Марина Павловна', 'Гущин Роман Львович']],
       ['Вера Соколова', 'Стандарт', '+7 900 333-33-33'],
       ['Георгий Ким', 'Пресса', '+7 900 444-44-44'],
       ['Дарья Иванова', 'VIP', '+7 900 555-55-55'],
-      ['Егор Волков', 'Стандарт', '+7 900 666-66-66'],
+      ['Егор Волков', 'Командный билет', '+7 900 666-66-66', 'Кодовый доступ',
+        ['Волков Егор Дмитриевич', 'Шаров Пётр Игоревич', 'Лапина Ольга Романовна', 'Кузьмин Артём Вадимович']],
       ['Жанна Морозова', 'Стандарт', '+7 900 777-77-77'],
       ['Захар Лебедев', 'Стандарт', '+7 900 888-88-88'],
       ['Ирина Новикова', 'Пресса', '+7 900 999-99-99'],
       ['Кирилл Егоров', 'Стандарт', '+7 900 000-00-00'],
-      ['Лариса Павлова', 'VIP', '+7 900 123-45-67'],
+      ['Лариса Павлова', 'Командный билет', '+7 900 123-45-67', 'Тёплый стан',
+        ['Павлова Лариса Сергеевна', 'Белова Ксения Андреевна', 'Рогов Денис Павлович']],
       ['Максим Степанов', 'Стандарт', '+7 900 765-43-21'],
     ];
     const now = Date.now();
     const at = min => new Date(now - min * 60000).toISOString();
-    const guests = rows.map((r, i) => ({
-      id: 'g' + (i + 1),
-      name: r[0],
-      email: 'demo' + (i + 1) + '@example.com',
-      phone: r[2],
-      ticket_type: r[1],
-      ticket_number: String(10001 + i),
-      barcode: ean13(i + 1),
-      source: 'timepad',
-      event: EV,
-      arrived_at: [0, 3, 6].includes(i) ? at(20 - i * 5) : '',
-    }));
+    const guests = rows.map((r, i) => {
+      const g = {
+        id: 'g' + (i + 1),
+        name: r[0],
+        email: 'demo' + (i + 1) + '@example.com',
+        phone: r[2],
+        ticket_type: r[1],
+        ticket_number: String(10001 + i),
+        barcode: ean13(i + 1),
+        source: 'timepad',
+        event: EV,
+        arrived_at: [0, 3, 6].includes(i) ? at(20 - i * 5) : '',
+      };
+      if (r[3]) g.team = r[3];
+      if (r[4]) g.members = r[4];
+      return g;
+    });
+    // частичный приход в «Орбите»: двое из трёх, билет ещё не отмечен
+    guests[1].member_arrived = { 'Смирнов Борис Олегович': true, 'Титова Марина Павловна': true, 'Гущин Роман Львович': false };
     guests.push({
       id: 'a1', name: 'Ольга Из Архива', phone: '+7 900 555-00-00',
       ticket_type: 'Стандарт', ticket_number: '20001', barcode: ean13(90),
@@ -132,6 +143,13 @@
       if (!g) return json({ error: 'guest not found' }, 404);
       g.arrived_at = '';
       if (d.via[b.event]) delete d.via[b.event][g.id];
+      save(d);
+      return json({ ok: true });
+    }
+    if (p === '/api/member' && method === 'POST') {
+      const g = d.guests.find(x => x.event === b.event && x.id === b.guest_id);
+      if (!g) return json({ error: 'guest not found' }, 404);
+      g.member_arrived = b.members || {};
       save(d);
       return json({ ok: true });
     }
