@@ -32,7 +32,11 @@ jobs:
         run: |
           LATEST=$(git tag -l 'v*' --sort=-v:refname | head -1)
           [ -z "$LATEST" ] && LATEST=v0.0
-          IFS=. read -r MA MI <<< "${LATEST#v}"
+          # старые теги трёхчастные (v1.5.0), новые — двузначные (v1.6):
+          # вырезаем patch, если он есть
+          VER=${LATEST#v}
+          MA=${VER%%.*}
+          MI=${VER#*.}; MI=${MI%%.*}
           if [ "$BRANCH" = "main" ]; then
             MA=$((MA+1)); MI=0
           else
