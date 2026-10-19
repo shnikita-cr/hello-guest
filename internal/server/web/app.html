@@ -391,6 +391,7 @@ async function refresh(){
     clearInterval(timer);timer=setInterval(refresh,2500);
     render();
   }catch(e){
+    if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();showPin();return;}
     setLive(false);
     clearInterval(timer);timer=setInterval(refresh,800);
     render();
@@ -847,7 +848,7 @@ window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
 function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getElementById(id)).filter(Boolean);if(els.length&&els.every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
 loadVer();
-setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>setLive(e.message==='pin'));},2500);
+setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>{if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();showPin();}else setLive(false);});},2500);
 document.getElementById('list').addEventListener('click',e=>{
   const mg=e.target.closest('[data-mem]');
   if(mg){
