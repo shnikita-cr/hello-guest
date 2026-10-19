@@ -30,13 +30,10 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .vt{display:flex;gap:8px;margin:0 12px 10px}
 .vt button{flex:1;min-height:40px;padding:8px;font-size:14px;background:var(--card);border:1px solid #2a313a}
 .vt button.on{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
-.grp{background:var(--card);border-radius:12px;margin-bottom:8px;overflow:hidden}
-.grp .row{margin-bottom:0;border-radius:0;background:none}
-.mlist{padding:4px 14px 14px}
-.mem{display:flex;align-items:center;gap:12px;padding:14px;background:#2a313a;border-radius:12px;margin-top:8px;font-size:15px;font-weight:600;color:var(--fg);cursor:pointer}
-.mem .mark{width:14px;height:14px;border-radius:50%;background:#3a4451;flex:none}
-.mem span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mem.in .mark{background:var(--ok)}
+.grp{border:1px solid #2a313a;border-radius:12px;margin-bottom:8px;overflow:hidden}
+.grp .row{margin-bottom:8px}
+.mlist{padding:0}
+.mlist .row:last-child{margin-bottom:0}
 .chev{color:var(--mut);font-weight:400;padding-left:8px}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
 .pane h2{margin:0 0 12px;font-size:20px}
@@ -473,11 +470,14 @@ function render(){
       const r=roster(g);
       let body='';
       if(open){
-        const rows=r.map((x,mi)=>`<div class="mem${x.on?' in':''}"${team?` data-mem="${mi}" data-mi="${i}"`:` data-solo="${i}"`}><div class="mark"></div><span>${esc(x.n)}</span></div>`).join('');
+        const rows=r.map((x,mi)=>{
+          const sub=x.n===g.name?`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`:'';
+          return `<div class="row${x.on?' arrived':''}"${team?` data-mem="${mi}" data-mi="${i}"`:` data-solo="${i}"`}><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
+        }).join('');
         body=`<div class="mlist">${rows}</div>`;
       }
       const title=team?(g.team||g.name):g.name;
-      const sub=esc(g.ticket_type||'');
+      const sub=team?`Капитан: ${esc(g.name)}`:esc(g.ticket_type||'');
       html+=`<div class="grp"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev">${open?'▾':'▸'}</span></div>${body}</div>`;
     }else{
       html+=row;
