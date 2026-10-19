@@ -98,7 +98,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Команды</button></div>
   <button id="btnAddTeam" class="hide" style="margin:0 12px 8px;width:calc(100% - 24px)" onclick="addGroup()">+ Группа</button>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
-  <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/Barcode</button>
+  <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/штрих-код</button>
   <div id="list" class="list"></div>
 </div>
 
@@ -491,7 +491,7 @@ function render(){
           const sub=`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
           return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
         }).join('');
-        body=`<div class="mlist">${rows}<button style="width:100%;margin-top:8px" onclick="addMember(${i})">+ Человек</button></div>`;
+        body=`<div class="mlist">${rows}<button style="width:100%;margin-top:8px" onclick="addMember(${i})">+ Гость</button></div>`;
       }
       const title=team?(g.team||g.name):g.name;
       const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
