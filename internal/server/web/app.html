@@ -874,6 +874,17 @@ async function openStats(){
     d.innerHTML=`<div class="t">${esc(t)}</div><div class="f"><i style="width:${pct}%"></i></div><div>${v.a}/${v.n}</div>`;
     el.appendChild(d);
   });
+  // командные билеты и люди в их составах — отдельными строками
+  const teams=guests.filter(isTeam);
+  if(teams.length){
+    const bar=(label,a,b)=>{
+      const d=document.createElement('div');d.className='bar';
+      d.innerHTML=`<div class="t">${label}</div><div class="f"><i style="width:${b?Math.round(a/b*100):0}%"></i></div><div>${a}/${b}</div>`;
+      el.appendChild(d);
+    };
+    bar('Командные билеты',teams.filter(g=>g.arrived_at).length,teams.length);
+    bar('Люди в командах',teams.reduce((s,g)=>s+roster(g).filter(x=>x.on).length,0),teams.reduce((s,g)=>s+roster(g).length,0));
+  }
   try{
     const st=await api('/api/stats?event='+encodeURIComponent(event));
     document.getElementById('sQR').textContent=st.qr;
