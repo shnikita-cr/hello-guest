@@ -329,7 +329,7 @@ async function pickEvent(){
     const d=document.createElement('div');d.className='row'+(e.hidden?' muted':'');
     d.innerHTML=`<div class="nm">${esc(e.event)}<div class="sub">${e.arrived}/${e.total} пришло${e.hidden?' · скрыто':''}</div></div>`;
     const b1=document.createElement('button');b1.className='mini';
-    b1.textContent=e.hidden?'↩':'✏';
+    b1.textContent=e.hidden?'↩':'📝';
     b1.onclick=ev=>{ev.stopPropagation();e.hidden?toggleEventHidden(e.event,false):renameEvent(e.event);};
     const b2=document.createElement('button');b2.className='mini';
     b2.textContent=e.hidden?'':'👁';
