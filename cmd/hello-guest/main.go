@@ -20,8 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/grandcat/zeroconf"
-
 	"hello-guest/internal/backup"
 	"hello-guest/internal/server"
 	"hello-guest/internal/store"
@@ -56,11 +54,10 @@ func main() {
 	log.SetFlags(0) // метку времени ставит tsWriter в фоновом журнале
 	addr := flag.String("addr", "", "listen address (default :80, fallback :8080)")
 	data := flag.String("data", "./data", "data directory")
-	name := flag.String("name", "hello-guest", "mDNS hostname (<name>.local)")
 	showVer := flag.Bool("version", false, "print version and exit")
 	detach := flag.Bool("d", false, "show startup info in console, then run in background")
 	backupDir := flag.String("backup-dir", "../../copy-data", "backup directory (relative to data dir)")
-	advertiseIP := flag.String("ip", "", "advertised IP for banner and mDNS (default: auto-detect)")
+	advertiseIP := flag.String("ip", "", "advertised IP for banner (default: auto-detect)")
 	openStatus := flag.Bool("open", false, "open the status page in the browser after start")
 	flag.Parse()
 	if *showVer {
@@ -168,20 +165,6 @@ func main() {
 		printf("Сброс браузера: http://%s/reset\n", ips[0])
 	}
 
-	done := make(chan struct{})
-	// в mDNS при автоопределении уходит только основной адрес,
-	// явный список --ip публикуется целиком
-	host := *name
-	mdns := ips[:1]
-	if *advertiseIP != "" {
-		mdns = ips
-	}
-	if sd, err := zeroconf.RegisterProxy(*name, "_http._tcp", "local.", port, host, mdns, nil, nil); err == nil {
-		go func() { <-done; sd.Shutdown() }()
-	} else {
-		printf("mDNS недоступен: %v\n", err)
-	}
-
 	// стоп и перезапуск — кнопками экрана статуса (только localhost)
 	srv.OnStop = func() {
 		printf("останавливаюсь по запросу с экрана статуса\n")
@@ -224,7 +207,6 @@ func main() {
 		ch := make(chan os.Signal, 1)
 		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 		<-ch
-		close(done)
 		listener.Close()
 		os.Exit(0)
 	}()
