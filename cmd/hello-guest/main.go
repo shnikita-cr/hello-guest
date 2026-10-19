@@ -90,12 +90,21 @@ func main() {
 		return
 	}
 
+	printf(`  _   _ _____ _   _  ____                  
+ | | | |_   _| | | |/ ___| ___  ___  _ __   __| |  _ \| ___| / __||_   _| | |
+ | |_| || |   | |_| || |    / _ \/ _ \| '_ \ / _` + "`" + ` | |_) |___ \\__ \_   _| |_| |_|
+ |____/|_|   | \___/ |_|    \___/\___/|_| |_\__,_|____/|___/  |_|  \___/ \___/|
+`)
+
 	cfg, pin, err := server.LoadOrCreateConfig(*data)
 	if err != nil {
 		log.Fatal(err)
 	}
+	if pin == "" { // конфиг уже был: PIN храним в нём же для консоли
+		pin = cfg.PinPlain
+	}
 	if pin != "" {
-		printf("\n  PIN: %s\n\n", pin)
+		printf("\nPIN: %s\n\n", pin)
 	}
 
 	st, err := store.Open(*data + "/hello-guest.ndjson")
@@ -115,7 +124,6 @@ func main() {
 	bk.Start(nil, func(err error) { log.Printf("бэкап: %v", err) })
 	srv.TriggerBackup = func() (string, error) { return bk.Manual(time.Now()) }
 	srv.BackupTimes = bk.Times
-	printf("бэкапы: каждые 5 минут → %s\n", bk.DestDir)
 	listener, port := listen(*addr)
 	os.WriteFile(filepath.Join(*data, "status.port"), []byte(fmt.Sprintf("%d", port)), 0o644)
 	var ips []string
@@ -125,14 +133,7 @@ func main() {
 		ips = availableIPs()
 	}
 	srv.StatusIPs = ips
-	host := *name
-	// в mDNS при автоопределении уходит только основной адрес,
-	// явный список --ip публикуется целиком
-	mdns := ips[:1]
-	if *advertiseIP != "" {
-		mdns = ips
-	}
-	printf("hello-guest запущен\n")
+	printf("Hello-Guest запущен успешно\n")
 
 	// TLS на 8443: камера (сканер QR) работает только в secure context
 	var tlsL net.Listener
@@ -140,10 +141,7 @@ func main() {
 	if err != nil {
 		printf("TLS недоступен: %v\n", err)
 	} else {
-		printf("  https://%s:8443\n", *name+".local")
-		for _, x := range ips {
-			printf("  https://%s:8443\n", x)
-		}
+		printf("Сертификат: %s\n", certFile)
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
 			printf("TLS: %v\n", err)
@@ -160,7 +158,24 @@ func main() {
 		}
 	}
 
+	printf("Бэкапы каждые 5 минут: %s\n", bk.DestDir)
+	if len(ips) > 0 {
+		for _, x := range ips {
+			printf("Адрес подключения: http://%s\n", x)
+		}
+		printf("какая сеть у вас — разработчик не знает: подходит адрес, что открывается с планшета\n")
+		printf("для сканера QR: https://<адрес>:8443\n")
+		printf("Сброс браузера: http://%s/reset\n", ips[0])
+	}
+
 	done := make(chan struct{})
+	// в mDNS при автоопределении уходит только основной адрес,
+	// явный список --ip публикуется целиком
+	host := *name
+	mdns := ips[:1]
+	if *advertiseIP != "" {
+		mdns = ips
+	}
 	if sd, err := zeroconf.RegisterProxy(*name, "_http._tcp", "local.", port, host, mdns, nil, nil); err == nil {
 		go func() { <-done; sd.Shutdown() }()
 	} else {
