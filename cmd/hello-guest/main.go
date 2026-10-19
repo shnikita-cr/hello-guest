@@ -164,6 +164,22 @@ func main() {
 		printf("Сброс браузера: https://%s:8443/reset\n", ips[0])
 	}
 
+	// Enter в консоли сворачивает окно в фон; у фонового процесса stdin закрыт
+	if !daemonMode {
+		printf("Нажмите Enter в этом окне, чтобы свернуть его в фон\n")
+		go func() {
+			buf := make([]byte, 1)
+			for {
+				if _, err := os.Stdin.Read(buf); err != nil {
+					return
+				}
+				if buf[0] == '\n' || buf[0] == '\r' {
+					minimizeConsole()
+				}
+			}
+		}()
+	}
+
 	// стоп и перезапуск — кнопками экрана статуса (только localhost)
 	srv.OnStop = func() {
 		printf("останавливаюсь по запросу с экрана статуса\n")
