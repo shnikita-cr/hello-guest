@@ -1,12 +1,12 @@
 <style>
 @page {
   size: A4;
-  margin: 20mm 18mm;
+  margin: 14mm 12mm;
   @bottom-center { content: counter(page); color: #666; font-size: 9pt; }
 }
 body {
   font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
-  font-size: 10.5pt;
+  font-size: 11pt;
   line-height: 1.5;
   color: #111;
 }
@@ -19,12 +19,17 @@ body {
 #title-block-header .subtitle { font-size: 16pt; color: #333; margin: 0 0 24pt; }
 #title-block-header .author { font-size: 11pt; color: #555; margin: 0 0 6pt; }
 #title-block-header .date { font-size: 12pt; color: #555; margin: 0; }
-h1 { font-size: 20pt; margin-top: 0; page-break-before: always; }
+h1 { font-size: 20pt; margin-top: 0; page-break-before: always; break-after: avoid; }
 h1.title { page-break-before: avoid; }
-h2 { font-size: 14pt; margin-top: 1.4em; border-bottom: 1px solid #ccc; padding-bottom: 2pt; }
-h3 { font-size: 12pt; }
-code { font-family: "DejaVu Sans Mono", monospace; font-size: 9.5pt; background: #f2f2f2; padding: 0 2pt; }
+h2 { font-size: 14pt; margin-top: 1.4em; border-bottom: 1px solid #ccc; padding-bottom: 2pt; break-after: avoid; page-break-before: always; }
+h1 + h2 { page-break-before: avoid; }
+h3 { font-size: 12pt; break-after: avoid; page-break-before: always; }
+h2 + h3, h1 + h3 { page-break-before: avoid; }
+p { orphans: 2; widows: 2; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 9.5pt; background: #f2f2f2; padding: 0 2pt; white-space: nowrap; }
+pre { white-space: pre-wrap; }
 table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
+tr { break-inside: avoid; }
 th, td { border: 1px solid #999; padding: 4pt 6pt; text-align: left; }
 th { background: #eef1f4; }
 #TOC { background: #f7f8fa; border: 1px solid #ddd; padding: 10pt 14pt; margin-bottom: 16pt; page-break-after: always; }
@@ -32,4 +37,5 @@ th { background: #eef1f4; }
 #TOC ul { list-style: none; padding-left: 12pt; }
 #TOC a { color: #1a4d8f; text-decoration: none; }
 #TOC > ul { padding-left: 0; }
+#TOC a::after { content: leader('.') target-counter(attr(href), page); color: #666; }
 </style>
