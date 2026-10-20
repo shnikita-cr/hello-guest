@@ -453,7 +453,10 @@ async function pushMembers(g,members){
 // приход команды ⇔ хотя бы один член отмечен поимённо:
 // карточка не может остаться полузелёной, когда отметки всех членов сняты
 function syncTeamArrival(g){
-  const anyOn=Object.values(g.member_arrived||{}).some(Boolean);
+  const m=g.member_arrived||{};
+  // приход из старых версий без поимённой карты: отметка принадлежит капитану
+  if(g.arrived_at&&!Object.keys(m).length){markCaptain(g,true);return;}
+  const anyOn=Object.values(m).some(Boolean);
   if(!!g.arrived_at===anyOn)return;
   g.arrived_at=anyOn?new Date().toISOString():'';
   const t=anyOn?'checkin':'undo';
