@@ -65,7 +65,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends pandoc python3-pip \
-            libpango-1.0-0 libpangocairo-1.0-0 fonts-dejavu-core
+            libpango-1.0-0 libpangocairo-1.0-0 fonts-liberation fonts-dejavu-core
           python3 -m pip install --break-system-packages --quiet weasyprint
           mkdir -p dist-pdf
           pandoc docs/README.md docs/startup.md docs/home.md docs/status.md docs/admin.md \
