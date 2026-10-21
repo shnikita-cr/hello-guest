@@ -513,11 +513,17 @@ function render(){
   if(viewMode==='groups')gs=gs.filter(isTeam); // одиночки в командном виде не показываем
   gs.sort((a,b)=>((a.arrived_at?1:0)-(b.arrived_at?1:0))||((a.name||'')<(b.name||'')?-1:(a.name||'')>(b.name||'')?1:0));
   viewG=gs;
+  // у члена команды на вкладке «Гости» билет команды-владельца, а не его соло-запись
+  const ownerOf=new Map();
+  guests.forEach(t=>{if(isTeam(t))(t.members||[]).forEach(n=>{if(!ownerOf.has(n))ownerOf.set(n,t);});});
   document.getElementById('countLine').innerHTML=countLine();
   let html='';
   for(let i=0;i<gs.length;i++){
     const g=gs[i];
-    const row=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
+    const own=ownerOf.get(g.name);
+    const subT=esc((own?own.ticket_type:g.ticket_type)||'');
+    const subN=own?own.ticket_number:g.ticket_number;
+    const row=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${subT} ${subN?'· '+esc(subN):''}</div></div></div>`;
     if(viewMode==='groups'){
       const team=isTeam(g);
       const open=expanded.has(g.id);
