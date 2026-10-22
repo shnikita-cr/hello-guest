@@ -220,37 +220,59 @@ func guestsFrom(t table, event string) []store.Guest {
 	return guests
 }
 
-// splitMembers делит склеенные Timepadом ФИО. Два признака границы:
-// склейка без пробела («ВикторовнаАнисимова») и отчество с пробелом
-// перед новым ФИО («Евгеньевна Платонова»). ponytail: эвристика по
-// заглавной и окончаниям отчеств; точного парсера в данных не нужно.
+// splitMembers делит состав, как его ни записали в Timepad: склейка без
+// пробела («ВикторовнаАнисимова»), список через запятую («ФИО, ФИО»),
+// отчество перед новым ФИО («Евгеньевна Платонова»). Примечания в скобках
+// вырезаются. Порядок важен: скобки (в них бывают запятые), потом запятые,
+// потом склейки, потом отчества. ponytail: эвристика по окончаниям отчеств
+// и паре слов; точного парсера в данных не нужно.
 var reAfterOtchestvo = regexp.MustCompile(`[а-яё]+(?:овна|евна|ич|ыч)\s+`)
+var reParens = regexp.MustCompile(`\([^)]*\)`)
 
 func splitMembers(s string) []string {
-	var chunks []string
-	last := 0
-	for _, m := range reAfterOtchestvo.FindAllStringIndex(s, -1) {
-		chunks = append(chunks, s[last:m[1]])
-		last = m[1]
-	}
-	chunks = append(chunks, s[last:])
 	var out []string
-	for _, ch := range chunks {
-		segs := splitGlued(ch)
-		for _, seg := range segs {
-			w := strings.Fields(seg)
-			// ФИО без отчеств («Севастьянова Мария Кочергина Светлана...»):
-			// граница ни склейкой, ни отчеством не поймать — режем по два слова
-			if len(segs) == 1 && len(w) >= 4 && len(w)%2 == 0 && !reAfterOtchestvo.MatchString(seg) {
-				for i := 0; i < len(w); i += 2 {
-					out = append(out, w[i]+" "+w[i+1])
-				}
-				continue
-			}
-			out = append(out, seg)
+	for _, piece := range strings.Split(reParens.ReplaceAllString(s, " "), ",") {
+		for _, seg := range splitGlued(piece) {
+			out = append(out, splitByOtchestvo(seg)...)
 		}
 	}
 	return out
+}
+
+// splitByOtchestvo режет после отчества с пробелом — так начинается новое
+// ФИО. Совпадение в первом слове сегмента — это фамилия («Денскевич»),
+// за ней отчества нет, не режем.
+func splitByOtchestvo(seg string) []string {
+	var out []string
+	last := 0
+	for _, m := range reAfterOtchestvo.FindAllStringIndex(seg, -1) {
+		if m[1] >= len(seg) {
+			break
+		}
+		if len(strings.Fields(seg[last:m[1]])) < 2 {
+			continue
+		}
+		out = append(out, nameParts(seg[last:m[1]])...)
+		last = m[1]
+	}
+	return append(out, nameParts(seg[last:])...)
+}
+
+// nameParts дорезает кусок без отчеств: чётное слов ≥ 4 — по два слова
+// («Фамилия Имя»), иначе одно ФИО целиком.
+func nameParts(s string) []string {
+	w := strings.Fields(s)
+	if len(w) >= 4 && len(w)%2 == 0 {
+		out := make([]string, 0, len(w)/2)
+		for i := 0; i < len(w); i += 2 {
+			out = append(out, w[i]+" "+w[i+1])
+		}
+		return out
+	}
+	if len(w) == 0 {
+		return nil
+	}
+	return []string{strings.Join(w, " ")}
 }
 
 func splitGlued(s string) []string {

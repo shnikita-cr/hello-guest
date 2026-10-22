@@ -26,6 +26,8 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .row .sub{font-size:13px;color:var(--mut);font-weight:400}
 .row .mark{width:14px;height:14px;border-radius:50%;background:#2a313a}
 .row.arrived .mark{background:var(--ok)}
+.row .mark.full{background:var(--ok)}
+.row .mark.half{background:linear-gradient(to right,var(--ok) 50%,#2a313a 50%)}
 .row.dup{border-color:var(--warn)}
 .vt{display:flex;gap:8px;margin:0 12px 10px}
 .vt button{flex:1;min-height:40px;padding:8px;font-size:14px;background:var(--card);border:1px solid #2a313a}
@@ -38,6 +40,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .mlist .row{background:#1f242c;margin-bottom:8px}
 .mlist .row .mark{background:#3a4451}
 .mlist .row.arrived .mark{background:var(--ok)}
+.mlist button{background:#1f242c}
 .chev{padding-left:8px;align-self:stretch;display:flex;align-items:center;justify-content:center}
 .chev::after{content:'';width:0;height:0;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent var(--mut);transition:transform .15s}
 .chev.open::after{transform:rotate(90deg)}
@@ -80,7 +83,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 <div class="tabs">
   <button id="tabPin" onclick="showPin()">Вход</button>
   <button class="on hide" id="tabList" onclick="showTab('list')">Список</button>
-  <button class="hide" id="tabAdd" onclick="openAdd()">+ Гость</button>
+  <button class="hide" id="tabAdd" onclick="addTab()">+ Гость</button>
   <button id="tabStats" onclick="openStats()">Статистика</button>
   <button class="hide" id="tabSrc" onclick="openSrc()">Источники</button>
 </div>
@@ -95,8 +98,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   </div>
   <div class="count" id="countLine">пришло 0 / 0</div>
   <div class="count" id="metLine" style="display:none"></div>
-  <div class="vt"><button id="vwAll" onclick="setView('all')">Участники</button><button id="vwGrp" onclick="setView('groups')">Команды</button></div>
-  <button id="btnAddTeam" class="hide" style="margin:0 12px 8px;width:calc(100% - 24px)" onclick="addGroup()">+ Группа</button>
+  <div class="vt"><button id="vwAll" onclick="setView('all')">Гости</button><button id="vwGrp" onclick="setView('groups')">Команды</button></div>
   <input id="q" placeholder="Поиск: имя, email, телефон, билет" oninput="render()" style="margin:0 12px 12px;width:calc(100% - 24px)">
   <button class="primary" onclick="startScan()" style="margin:0 12px 12px;width:calc(100% - 24px)">Сканировать QR/штрих-код</button>
   <div id="list" class="list"></div>
@@ -104,8 +106,8 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="eventPane" class="pane hide">
   <div id="offlineBar2" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <h2 style="flex:1;margin:0">Мероприятия</h2>
+  <div style="display:flex;align-items:center;gap:8px">
+    <h2 style="flex:1">Мероприятия</h2>
     <span id="hgVer3" style="font-size:13px;color:var(--mut);font-weight:400"></span>
     <span id="liveDot2" class="dot">❤️</span>
   </div>
@@ -115,7 +117,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="addPane" class="pane hide">
   <div id="offlineBar3" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN3">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Новый гость</h2><span id="liveDot4" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Новый гость</h2><span id="liveDot4" class="dot">❤️</span></div>
   <div class="field"><label>Имя *</label><input id="aName"></div>
   <div class="field"><label>Телефон</label><input id="aPhone" type="tel"></div>
   <div class="field"><label>Email</label><input id="aEmail" type="email"></div>
@@ -128,7 +130,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="statsPane" class="pane hide">
   <div id="offlineBar4" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN4">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Статистика</h2><span id="liveDot5" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Статистика</h2><span id="liveDot5" class="dot">❤️</span></div>
   <div class="stats">
     <div class="stat"><div class="v" id="sArrived">0</div><div class="l">пришло</div></div>
     <div class="stat"><div class="v" id="sTotal">0</div><div class="l">всего</div></div>
@@ -147,7 +149,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="srcPane" class="pane hide">
   <div id="offlineBar5" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN5">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1;margin:0">Источники</h2><span id="liveDot6" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Источники</h2><span id="liveDot6" class="dot">❤️</span></div>
   <p style="color:var(--mut);font-size:14px">Импорт выгрузки Timepad (CSV или XLSX) или подтягивание через API в текущее мероприятие.</p>
   <div class="field">
     <label>Мероприятие (куда загружать)</label>
@@ -181,14 +183,14 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <div id="offlineBar6" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN6">0</span> в очереди</div>
   <div style="max-width:640px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:8px">
-      <h2 style="flex:1;margin:0">Сканер QR</h2>
+      <h2 style="flex:1">Сканер QR</h2>
       <span id="liveDot3" class="dot">❤️</span>
     </div>
     <video id="qrVideo" autoplay playsinline muted style="width:100%;max-height:50vh;object-fit:cover;border-radius:12px;background:#111"></video>
     <div id="qrMsg" style="font-size:18px;font-weight:700;min-height:28px;margin:12px 0"></div>
     <div id="scanCount" style="font-size:16px;color:#d4ff00;font-weight:700;min-height:22px"></div>
-    <div style="font-size:14px;color:var(--mut)">Не читается с экрана — отодвиньте телефон гостя или попросите наклонить</div>
-    <p style="color:var(--mut);font-size:14px">Наведите камеру на QR-код или штрих-код билета Timepad. После отметки камера продолжит сканирование — можно приглашать следующего гостя.</p>
+    <div style="font-size:14px;color:var(--mut)">Если код не читается сканером — отодвиньте телефон гостя или попросите наклонить</div>
+    <p style="color:var(--mut);font-size:14px">Наведите камеру на QR-код или штрих-код билета Timepad. После отметки камера продолжит сканирование — можно встречать следующего гостя.</p>
     <button style="width:100%" onclick="stopScan()">Закрыть</button>
   </div>
 </div>
@@ -232,7 +234,7 @@ function renderTabs(){
   document.getElementById('tabSrc').classList.toggle('hide',!authed);
   updateTabAdd();
 }
-// «+ Гость» и «Статистика» — внутри мероприятия, включая экраны этих вкладок
+// «+ Гость»/«+ Команда» и «Статистика» — внутри мероприятия, включая экраны этих вкладок
 function updateTabAdd(){
   const on=!!localStorage.getItem('hg_pin')&&!!event&&['app','addPane','statsPane'].includes(screen);
   document.getElementById('tabAdd').classList.toggle('hide',!on);
@@ -363,7 +365,7 @@ async function enterEvent(ev){
   localStorage.removeItem('hg_pick');
   show('app');
   document.getElementById('evTitle').textContent=ev;
-  loadCache();render();
+  loadCache();reconcileTeams();render();
   await refresh();
   clearInterval(timer);timer=setInterval(refresh,2500);
 }
@@ -387,6 +389,7 @@ async function refresh(){
     await flushQueue(); // сначала отправляем отложенные действия, потом тянем состояние
     const st=await api('/api/state?event='+encodeURIComponent(event));
     guests=st.guests||[];
+    reconcileTeams();
     saveCache();
     setLive(true);
     clearInterval(timer);timer=setInterval(refresh,2500);
@@ -405,7 +408,7 @@ function setView(m){viewMode=m;localStorage.setItem('hg_view',m);syncView();rend
 function syncView(){
   document.getElementById('vwAll').classList.toggle('on',viewMode==='all');
   document.getElementById('vwGrp').classList.toggle('on',viewMode==='groups');
-  document.getElementById('btnAddTeam').classList.toggle('hide',viewMode!=='groups');
+  document.getElementById('tabAdd').textContent=viewMode==='groups'?'+ Команда':'+ Гость';
 }
 function filtered(){
   const s=q();
@@ -414,7 +417,7 @@ function filtered(){
 }
 
 let viewG=[];
-const expanded=new Set(); // открытые составы в виде «Группы»
+const expanded=new Set(); // открытые составы в виде «Команды»
 // группа = командный билет по названию команды или типу билета:
 // так группы не обнуляются на данных, импортированных до появления поля team
 // тип билета главнее: сольный билет с мусором в колонке «название команды» — не группа
@@ -437,36 +440,71 @@ function memberSnap(g,flip){
   return m;
 }
 async function pushMembers(g,members){
-  g.member_arrived=members;saveCache();render();
+  g.member_arrived=members;saveCache();
+  syncTeamArrival(g);
+  syncSoloTwins(members);
+  render();
   const body={event,guest_id:g.id,members};
   if(navigator.onLine){
     try{await api('/api/member',{method:'POST',body});return;}catch(e){}
   }
   qpush({t:'member',...body});saveQueue();updateQueueN();
 }
-// countLine: в виде участников — билеты плюс люди на metLine,
-// в виде команд — только команды, метрики средних по тру-группам
+// приход команды ⇔ хотя бы один член отмечен поимённо:
+// карточка не может остаться полузелёной, когда отметки всех членов сняты
+function syncTeamArrival(g){
+  const m=g.member_arrived||{};
+  // приход из старых версий без поимённой карты: отметка принадлежит капитану
+  if(g.arrived_at&&!Object.keys(m).length){markCaptain(g,true);return;}
+  const anyOn=Object.values(m).some(Boolean);
+  if(!!g.arrived_at===anyOn)return;
+  g.arrived_at=anyOn?new Date().toISOString():'';
+  const t=anyOn?'checkin':'undo';
+  // повторный вызов до отправки очереди не плодит дубли операций
+  if(!queue.some(x=>x.t===t&&x.guest_id===g.id&&x.event===event))
+    qpush({t,event,guest_id:g.id,device:deviceName(),via:'tap'});
+  saveQueue();updateQueueN();
+}
+// серверное состояние приводим к инварианту при каждой загрузке:
+// след старых версий (приход карточки без отмечённых членов) снимается один раз
+function reconcileTeams(){
+  guests.forEach(g=>{if(isTeam(g))syncTeamArrival(g);});
+  saveCache();
+}
+// соло-гость с именем члена команды: отметка на «Гостях» и поимённая на «Командах» — одно и то же
+function syncSoloTwins(members){
+  Object.keys(members).forEach(n=>{
+    const s=guests.find(x=>!isTeam(x)&&x.name===n);
+    if(!s||!!s.arrived_at===!!members[n])return;
+    s.arrived_at=members[n]?new Date().toISOString():'';
+    qpush({t:members[n]?'checkin':'undo',event,guest_id:s.id,device:deviceName(),via:'tap'});
+    saveQueue();updateQueueN();
+  });
+}
+// countLine: в виде гостей — билеты плюс люди на metLine,
+// в виде команд — только команды, метрики средних по командам
 function countLine(){
   const pct=(a,n)=>n?'('+Math.round(a/n*100)+'%)':'';
   const met=document.getElementById('metLine');
   if(viewMode==='groups'){
-    const teams=guests.filter(isTeam),ta=teams.filter(g=>g.arrived_at).length;
+    const teams=guests.filter(isTeam);
     const sizes=teams.map(g=>Math.max(1,(g.members||[]).length));
     const arrs=teams.map(g=>roster(g).filter(x=>x.on).length);
+    const full=arrs.filter((x,i)=>x>=sizes[i]).length;
     const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
     const as=mean(sizes),aa=mean(arrs);
-    if(teams.length){
-      met.innerHTML='в среднем в тру-группе: '+as.toFixed(1)+' чел · пришло '+aa.toFixed(1)+' ('+(as?Math.round(aa/as*100):0)+'%)';
-      met.style.display='';
-    }else met.style.display='none';
-    return 'команд: пришло <b>'+ta+'</b> / '+teams.length+' '+pct(ta,teams.length);
+    met.innerHTML=teams.length
+      ?'В среднем в команде: <b>'+as.toFixed(1)+'</b> чел · пришло <b>'+aa.toFixed(1)+'</b> ('+(as?Math.round(aa/as*100):0)+'%)'
+      :'В среднем в команде: —';
+    met.style.display='';
+    return 'Полных команд: пришло <b>'+full+'</b> / '+teams.length+' '+pct(full,teams.length);
   }
   const people=gs=>gs.reduce((s,g)=>s+Math.max(1,(g.members||[]).length),0);
   const a=people(guests.filter(g=>g.arrived_at)),n=people(guests);
   const arrT=guests.filter(g=>g.arrived_at).length;
-  met.innerHTML='людей: пришло <b>'+a+'</b> / '+n+' '+pct(a,n);
+  met.innerHTML='Гости: пришло <b>'+a+'</b> / '+n+' '+pct(a,n);
   met.style.display='';
-  return 'билетов: пришло <b>'+arrT+'</b> / '+guests.length+' '+pct(arrT,guests.length);
+  return 'Билеты: пришло <b>'+arrT+'</b> / '+guests.length+' '+pct(arrT,guests.length);
 }
 function render(){
   updateScanCount();
@@ -475,11 +513,17 @@ function render(){
   if(viewMode==='groups')gs=gs.filter(isTeam); // одиночки в командном виде не показываем
   gs.sort((a,b)=>((a.arrived_at?1:0)-(b.arrived_at?1:0))||((a.name||'')<(b.name||'')?-1:(a.name||'')>(b.name||'')?1:0));
   viewG=gs;
+  // у члена команды на вкладке «Гости» билет команды-владельца, а не его соло-запись
+  const ownerOf=new Map();
+  guests.forEach(t=>{if(isTeam(t))(t.members||[]).forEach(n=>{if(!ownerOf.has(n))ownerOf.set(n,t);});});
   document.getElementById('countLine').innerHTML=countLine();
   let html='';
   for(let i=0;i<gs.length;i++){
     const g=gs[i];
-    const row=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}</div></div></div>`;
+    const own=ownerOf.get(g.name);
+    const subT=esc((own?own.ticket_type:g.ticket_type)||'');
+    const subN=own?own.ticket_number:g.ticket_number;
+    const row=`<div class="row${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(g.name)}<div class="sub">${subT} ${subN?'· '+esc(subN):''}</div></div></div>`;
     if(viewMode==='groups'){
       const team=isTeam(g);
       const open=expanded.has(g.id);
@@ -491,11 +535,13 @@ function render(){
           const sub=`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
           return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
         }).join('');
-        body=`<div class="mlist">${rows}<button style="width:100%;margin-top:8px" onclick="addMember(${i})">+ Гость</button></div>`;
+        body=`<div class="mlist">${rows}<div style="display:flex;gap:8px;margin-top:8px"><button style="flex:1" onclick="addMember(${i})">+ Гость</button><button style="flex:1" onclick="addParticipant(${i})">+ Участник</button></div></div>`;
       }
       const title=team?(g.team||g.name):g.name;
       const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
-      html+=`<div class="grp${open?' open':''}"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev${open?' open':''}"></span></div>${body}</div>`;
+      const on=r.filter(x=>x.on).length;
+      const mk=on>0?(on>=r.length?' full':' half'):'';
+      html+=`<div class="grp${open?' open':''}"><div class="row grow${g.arrived_at?' arrived':''}" data-i="${i}"><div class="mark${mk}"></div><div class="nm">${esc(title)}<div class="sub">${sub}</div></div><span class="chev${open?' open':''}"></span></div>${body}</div>`;
     }else{
       html+=row;
     }
@@ -508,26 +554,42 @@ function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'
 async function tap(g){
   if(g.arrived_at){
     if(!confirm('Уже отмечен. Снять отметку?'))return;
-    qpush({t:'undo',event,guest_id:g.id});g.arrived_at='';
-    markCaptain(g,false);
+    if(isTeam(g)){
+      // снятие карточки команды = снять всех членов разом, иначе виды «Гости» и «Команды» разъедутся
+      const m={};roster(g).forEach(x=>m[x.n]=false);
+      await pushMembers(g,m);
+    }else{
+      qpush({t:'undo',event,guest_id:g.id});g.arrived_at='';
+      await syncMemberTwin(g,false);
+    }
   }else{
     g.arrived_at=new Date().toISOString();
     qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'tap'});
-    markCaptain(g,true);
+    if(isTeam(g))await markCaptain(g,true);
+    else await syncMemberTwin(g,true);
   }
   render();await flushQueue();
 }
 // тап по человеку в списке отмечает только его: у группы — капитана поимённо
 function markCaptain(g,on){
-  if(!isTeam(g))return;
+  if(!isTeam(g))return Promise.resolve();
   const names=(g.members&&g.members.length)?g.members:[g.name];
   const prev=g.member_arrived||{};
   const m={};names.forEach(n=>m[n]=!!prev[n]);
   // в составе капитан записан ФИО иначе, чем имя гостя: берём точное совпадение
   // или первого члена — Timepad всегда ставит капитана первым
   m[names.includes(g.name)?g.name:names[0]]=on;
-  g.member_arrived=m;saveCache();
-  qpush({t:'member',event,guest_id:g.id,members:m});saveQueue();updateQueueN();
+  return pushMembers(g,m);
+}
+// соло-отметка человека, входящего в составы команд — обновляем поимённые отметки там
+async function syncMemberTwin(g,on){
+  for(const t of guests){
+    if(!isTeam(t)||!(t.members||[]).includes(g.name))continue;
+    const m=Object.assign({},t.member_arrived||{});
+    if(!!m[g.name]===!!on)continue;
+    m[g.name]=on;
+    await pushMembers(t,m);
+  }
 }
 
 function deviceName(){
@@ -536,11 +598,11 @@ function deviceName(){
   return d;
 }
 
-// новая группа в командном виде: капитан — первый из состава
+// новая команда в командном виде: капитан — первый из состава
 async function addGroup(){
-  const name=prompt('Название группы');
+  const name=prompt('Название команды');
   if(!name||!name.trim())return;
-  const people=prompt('Кто в группе? Имена через запятую, первый — капитан');
+  const people=prompt('Кто в команде? Имена через запятую, первый — капитан');
   if(!people)return;
   const members=people.split(',').map(x=>x.trim()).filter(Boolean);
   if(!members.length)return;
@@ -558,7 +620,7 @@ async function addGroup(){
 // человек в открытую группу: состав хранится на госте-владельце билета
 async function addMember(i){
   const g=viewG[i];if(!g)return;
-  const n=prompt('Имя нового участника');
+  const n=prompt('Имя нового гостя');
   if(!n||!n.trim())return;
   // у команды без состава в roster числится сам капитан — сохраняем его первым
   const members=(g.members&&g.members.length?g.members:[g.name]).concat([n.trim()]);
@@ -568,6 +630,40 @@ async function addMember(i){
     try{await api('/api/team',{method:'POST',body:b});}
     catch(e){alert(e.message);return;}
   }else qpush({t:'team',...b});
+  saveCache();render();await flushQueue();
+}
+
+// уже зарегистрированный человек (соло или из другой команды) — в состав этой команды
+async function addParticipant(i){
+  const g=viewG[i];if(!g||!isTeam(g))return;
+  const q=(prompt('Фамилия или имя зарегистрированного гостя')||'').trim().toLowerCase();
+  if(!q)return;
+  const names=(g.members&&g.members.length)?g.members:[g.name];
+  const hit=guests.find(x=>(x.name||'').toLowerCase().includes(q));
+  if(!hit){alert('Не найден зарегистрированный гость: '+q);return;}
+  if(names.includes(hit.name)){alert('«'+hit.name+'» уже в этом составе');return;}
+  if(isTeam(hit)){alert('«'+hit.name+'» — капитан команды «'+(hit.team||hit.name)+'»');return;}
+  const owner=guests.find(x=>x!==g&&isTeam(x)&&(x.members||[]).includes(hit.name));
+  if(owner&&!confirm('«'+hit.name+'» состоит в команде «'+(owner.team||owner.name)+'». Пересадить в «'+(g.team||g.name)+'»?'))return;
+  if(owner){
+    const om=Object.assign({},owner.member_arrived||{});
+    delete om[hit.name];
+    owner.members=(owner.members||[]).filter(n=>n!==hit.name);
+    const ob={event,guest_id:owner.id,team:owner.team||'',members:owner.members};
+    if(navigator.onLine){
+      try{await api('/api/team',{method:'POST',body:ob});}catch(e){qpush({t:'team',...ob});}
+    }else qpush({t:'team',...ob});
+    await pushMembers(owner,om);
+  }
+  g.members=names.concat([hit.name]);
+  const b={event,guest_id:g.id,team:g.team||'',members:g.members};
+  if(navigator.onLine){
+    try{await api('/api/team',{method:'POST',body:b});}
+    catch(e){alert(e.message);return;}
+  }else qpush({t:'team',...b});
+  const m=Object.assign({},g.member_arrived||{});
+  m[hit.name]=!!hit.arrived_at;
+  await pushMembers(g,m);
   saveCache();render();await flushQueue();
 }
 
@@ -589,6 +685,7 @@ async function flushQueue(){
 }
 
 function openAdd(){show('addPane');document.getElementById('aName').focus();}
+function addTab(){viewMode==='groups'?addGroup():openAdd();}
 
 let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrBlur=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
 
@@ -725,7 +822,7 @@ function updateScanCount(){
   if(!el)return;
   if(!event||!guests.length){el.textContent='';return;}
   let a=0;for(const g of guests)if(g.arrived_at)a++;
-  el.textContent='отмечено '+a+' из '+guests.length;
+  el.textContent='Отмечено '+a+' из '+guests.length;
 }
 
 function zxMake(formats,hard){
@@ -789,6 +886,9 @@ async function onQR(text){
   if(g.arrived_at){msg.style.color='var(--warn)';msg.textContent='Уже отмечен: '+g.name;buzz(200);flashQR('#d4ff00','✓','УЖЕ ОТМЕЧЕН',g.name,600,'#111');qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});return;}
   g.arrived_at=new Date().toISOString();
   qpush({t:'checkin',event,guest_id:g.id,device:deviceName(),via:'qr'});
+  // QR ставит приход карточки — поимённо фиксируем капитана (или соло-члена команды)
+  if(isTeam(g))await markCaptain(g,true);
+  else await syncMemberTwin(g,true);
   msg.style.color='var(--ok)';msg.textContent='Отмечен: '+g.name;
   buzz(80);flashQR('#1e8f4e','✓','ОТМЕЧЕН',g.name,450);
   render();await flushQueue();
@@ -874,7 +974,7 @@ async function openStats(){
     d.innerHTML=`<div class="t">${esc(t)}</div><div class="f"><i style="width:${pct}%"></i></div><div>${v.a}/${v.n}</div>`;
     el.appendChild(d);
   });
-  // командные билеты и люди в их составах — отдельными строками
+  // люди в составах команд — отдельной строкой; билеты уже есть в разбивке по типам
   const teams=guests.filter(isTeam);
   if(teams.length){
     const bar=(label,a,b)=>{
@@ -882,8 +982,7 @@ async function openStats(){
       d.innerHTML=`<div class="t">${label}</div><div class="f"><i style="width:${b?Math.round(a/b*100):0}%"></i></div><div>${a}/${b}</div>`;
       el.appendChild(d);
     };
-    bar('Командные билеты',teams.filter(g=>g.arrived_at).length,teams.length);
-    bar('Люди в командах',teams.reduce((s,g)=>s+roster(g).filter(x=>x.on).length,0),teams.reduce((s,g)=>s+roster(g).length,0));
+    bar('Участники команд',teams.reduce((s,g)=>s+roster(g).filter(x=>x.on).length,0),teams.reduce((s,g)=>s+roster(g).length,0));
   }
   try{
     const st=await api('/api/stats?event='+encodeURIComponent(event));

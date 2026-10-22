@@ -12,7 +12,8 @@ import (
 	"hello-guest/internal/store"
 )
 
-const baseURL = "https://api.timepad.ru/v1"
+// BaseURL — базовый адрес API Timepad; в тестах подменяется на локальный сервер.
+var BaseURL = "https://api.timepad.ru/v1"
 
 type Client struct {
 	Token string
@@ -65,7 +66,7 @@ func (c *Client) FetchOrders(eventID int64) ([]store.Guest, error) {
 	skip := 0
 	const limit = 300
 	for {
-		u := fmt.Sprintf("%s/orders?event_ids=%d&limit=%d&skip=%d", baseURL, eventID, limit, skip)
+		u := fmt.Sprintf("%s/orders?event_ids=%d&limit=%d&skip=%d", BaseURL, eventID, limit, skip)
 		req, _ := http.NewRequest("GET", u, nil)
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 		resp, err := c.HTTP.Do(req)
