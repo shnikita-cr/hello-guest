@@ -636,7 +636,8 @@ function pickRows(g,q){
   const names=(g.members&&g.members.length)?g.members:[g.name];
   const ql=q.trim().toLowerCase();
   if(!ql)return [];
-  return guests.filter(x=>x!==g&&!names.includes(x.name)&&(x.name||'').toLowerCase().includes(ql)).slice(0,8);
+  // капитаны других команд не предлагаются: их состав менять нельзя
+  return guests.filter(x=>x!==g&&!isTeam(x)&&!names.includes(x.name)&&(x.name||'').toLowerCase().includes(ql)).slice(0,8);
 }
 function pickRowsHTML(g){
   return pickRows(g,pickQ).map((x,xi)=>
