@@ -41,6 +41,10 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .mlist .row .mark{background:#3a4451}
 .mlist .row.arrived .mark{background:var(--ok)}
 .mlist button{background:#1f242c}
+.memdel{background:none;border:0;color:var(--mut);font-size:20px;padding:0 2px;min-height:0;cursor:pointer}
+.msearch{display:flex;gap:8px;margin-top:8px;align-items:center}
+.msearch input{flex:1;min-height:44px;padding:10px 14px}
+.msearch button{min-height:44px;padding:0 14px}
 .chev{padding-left:8px;align-self:stretch;display:flex;align-items:center;justify-content:center}
 .chev::after{content:'';width:0;height:0;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent var(--mut);transition:transform .15s}
 .chev.open::after{transform:rotate(90deg)}
@@ -418,6 +422,7 @@ function filtered(){
 
 let viewG=[];
 const expanded=new Set(); // открытые составы в виде «Команды»
+let pickFor=null,pickQ=''; // открытый поиск «+ Участник» (id гостя-владельца)
 // группа = командный билет по названию команды или типу билета:
 // так группы не обнуляются на данных, импортированных до появления поля team
 // тип билета главнее: сольный билет с мусором в колонке «название команды» — не группа
@@ -508,6 +513,7 @@ function countLine(){
 }
 function render(){
   updateScanCount();
+  const pickFocus=pickFor&&document.activeElement&&document.activeElement.id==='pickInput';
   const list=document.getElementById('list');
   let gs=filtered();
   if(viewMode==='groups')gs=gs.filter(isTeam); // одиночки в командном виде не показываем
@@ -533,9 +539,13 @@ function render(){
         const rows=r.map((x,mi)=>{
           // подпись одинакова у всех строк: билет команды у членов тот же, что у капитана
           const sub=`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
-          return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div></div>`;
+          const del=mi>0?`<button class="memdel" data-del="${mi}" data-mi="${i}" aria-label="Убрать из состава">✕</button>`:'';
+          return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div>${del}</div>`;
         }).join('');
-        body=`<div class="mlist">${rows}<div style="display:flex;gap:8px;margin-top:8px"><button style="flex:1" onclick="addMember(${i})">+ Гость</button><button style="flex:1" onclick="addParticipant(${i})">+ Участник</button></div></div>`;
+        let pick='';
+        if(pickFor===g.id)
+          pick=`<div class="msearch"><input id="pickInput" placeholder="Фамилия или имя зарегистрированного" autocomplete="off"><button onclick="closePick()" aria-label="Закрыть поиск">✕</button></div><div class="mlist" id="pickBox">${pickRowsHTML(g)}</div>`;
+        body=`<div class="mlist">${rows}<div style="display:flex;gap:8px;margin-top:8px"><button style="flex:1" onclick="addMember(${i})">+ Гость</button><button style="flex:1" data-openpick="${i}">+ Участник</button></div>${pick}</div>`;
       }
       const title=team?(g.team||g.name):g.name;
       const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
@@ -547,6 +557,10 @@ function render(){
     }
   }
   list.innerHTML=html;
+  if(pickFor){
+    const el=document.getElementById('pickInput');
+    if(el){el.value=pickQ;if(pickFocus)el.focus();}
+  }
 }
 
 function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
@@ -617,6 +631,20 @@ async function addGroup(){
   saveCache();render();await flushQueue();
 }
 
+// поиск «+ Участник» живёт в открытой группе, не в prompt
+function pickRows(g,q){
+  const names=(g.members&&g.members.length)?g.members:[g.name];
+  const ql=q.trim().toLowerCase();
+  if(!ql)return [];
+  return guests.filter(x=>x!==g&&!names.includes(x.name)&&(x.name||'').toLowerCase().includes(ql)).slice(0,8);
+}
+function pickRowsHTML(g){
+  return pickRows(g,pickQ).map((x,xi)=>
+    `<div class="row" data-pick="${xi}"><div class="nm">${esc(x.name)}<div class="sub">${esc(x.ticket_type||'')}${x.team?' · '+esc(x.team):''}</div></div></div>`).join('');
+}
+function openPick(id){pickFor=pickFor===id?null:id;pickQ='';render();const el=document.getElementById('pickInput');if(el)el.focus();}
+function closePick(){pickFor=null;pickQ='';render();}
+
 // человек в открытую группу: состав хранится на госте-владельце билета
 async function addMember(i){
   const g=viewG[i];if(!g)return;
@@ -633,14 +661,28 @@ async function addMember(i){
   saveCache();render();await flushQueue();
 }
 
+// убрать члена из состава: состав и поимённая отметка на госте-владельце
+async function removeMember(i,mi){
+  const g=viewG[i];if(!g)return;
+  const names=g.members||[];
+  if(mi<1||mi>=names.length)return; // капитана-владельца не убираем
+  const n=names[mi];
+  if(!confirm('Убрать «'+n+'» из состава?'))return;
+  g.members=names.filter((_,k)=>k!==mi);
+  const b={event,guest_id:g.id,team:g.team||'',members:g.members};
+  if(navigator.onLine){
+    try{await api('/api/team',{method:'POST',body:b});}catch(e){qpush({t:'team',...b});}
+  }else qpush({t:'team',...b});
+  const m=Object.assign({},g.member_arrived||{});
+  delete m[n];
+  await pushMembers(g,m);
+  await flushQueue();
+}
+
 // уже зарегистрированный человек (соло или из другой команды) — в состав этой команды
-async function addParticipant(i){
-  const g=viewG[i];if(!g||!isTeam(g))return;
-  const q=(prompt('Фамилия или имя зарегистрированного гостя')||'').trim().toLowerCase();
-  if(!q)return;
+async function attachParticipant(g,hit){
+  if(!g||!hit)return;
   const names=(g.members&&g.members.length)?g.members:[g.name];
-  const hit=guests.find(x=>(x.name||'').toLowerCase().includes(q));
-  if(!hit){alert('Не найден зарегистрированный гость: '+q);return;}
   if(names.includes(hit.name)){alert('«'+hit.name+'» уже в этом составе');return;}
   if(isTeam(hit)){alert('«'+hit.name+'» — капитан команды «'+(hit.team||hit.name)+'»');return;}
   const owner=guests.find(x=>x!==g&&isTeam(x)&&(x.members||[]).includes(hit.name));
@@ -663,8 +705,9 @@ async function addParticipant(i){
   }else qpush({t:'team',...b});
   const m=Object.assign({},g.member_arrived||{});
   m[hit.name]=!!hit.arrived_at;
+  pickFor=null;pickQ='';
   await pushMembers(g,m);
-  saveCache();render();await flushQueue();
+  await flushQueue();
 }
 
 async function flushQueue(){
@@ -1001,6 +1044,16 @@ function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getEle
 loadVer();
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>{if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();showPin();}else setLive(false);});},2500);
 document.getElementById('list').addEventListener('click',e=>{
+  const del=e.target.closest('[data-del]');
+  if(del){removeMember(+del.dataset.mi,+del.dataset.del);return;}
+  const op=e.target.closest('[data-openpick]');
+  if(op){const g=viewG[+op.dataset.openpick];if(g)openPick(g.id);return;}
+  const pk=e.target.closest('[data-pick]');
+  if(pk){
+    const g=guests.find(x=>x.id===pickFor);
+    if(g)attachParticipant(g,pickRows(g,pickQ)[+pk.dataset.pick]);
+    return;
+  }
   const mg=e.target.closest('[data-mem]');
   if(mg){
     const g=viewG[+mg.dataset.mi];
@@ -1019,6 +1072,14 @@ document.getElementById('list').addEventListener('click',e=>{
     render();return;
   }
   tap(g);
+});
+// подсказки «+ Участник» обновляются без перерисовки всей страницы
+document.getElementById('list').addEventListener('input',e=>{
+  if(e.target.id!=='pickInput')return;
+  pickQ=e.target.value;
+  const g=guests.find(x=>x.id===pickFor);
+  const box=document.getElementById('pickBox');
+  if(box&&g)box.innerHTML=pickRowsHTML(g);
 });
 syncView();
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
