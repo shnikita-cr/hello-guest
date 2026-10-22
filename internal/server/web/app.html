@@ -42,9 +42,6 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .mlist .row.arrived .mark{background:var(--ok)}
 .mlist button{background:#1f242c}
 .memdel{background:none;border:0;color:var(--mut);font-size:20px;padding:0 2px;min-height:0;cursor:pointer}
-.msearch{display:flex;gap:8px;margin-top:8px;align-items:center}
-.msearch input{flex:1;min-height:44px;padding:10px 14px}
-.msearch button{min-height:44px;padding:0 14px}
 .chev{padding-left:8px;align-self:stretch;display:flex;align-items:center;justify-content:center}
 .chev::after{content:'';width:0;height:0;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent var(--mut);transition:transform .15s}
 .chev.open::after{transform:rotate(90deg)}
@@ -130,6 +127,25 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <button style="width:100%;margin-top:8px" onclick="saveGuest(false)">Сохранить без отметки</button>
   <button style="width:100%;margin-top:8px" onclick="closePanes()">Отмена</button>
   <div id="addErr" class="err"></div>
+</div>
+
+<!-- новый человек в открытую группу: имя вручную, в состав сразу -->
+<div id="memAddPane" class="pane hide">
+  <h2>Новый гость в группу</h2>
+  <div id="memAddFor" style="font-size:13px;color:var(--mut);margin:-6px 0 12px"></div>
+  <div class="field"><label>Имя *</label><input id="mName" autocomplete="off"></div>
+  <button class="primary" onclick="saveMemGuest()">Добавить в группу</button>
+  <button style="width:100%;margin-top:8px" onclick="closeMemPanes()">Назад</button>
+  <div id="memErr" class="err"></div>
+</div>
+
+<!-- уже зарегистрированный человек в открытую группу: поиск по списку -->
+<div id="memPickPane" class="pane hide">
+  <h2>Участник в группу</h2>
+  <div id="memPickFor" style="font-size:13px;color:var(--mut);margin:-6px 0 12px"></div>
+  <input id="pickInput" placeholder="Фамилия или имя зарегистрированного" oninput="onPickInput()" autocomplete="off">
+  <div class="mlist" id="pickBox"></div>
+  <button style="width:100%;margin-top:8px" onclick="closeMemPanes()">Назад</button>
 </div>
 
 <div id="statsPane" class="pane hide">
@@ -249,7 +265,7 @@ function showPin(){
   clearInterval(timer);
   screen='pin';updateTabAdd();
   setActiveTab('tabPin');
-  ['eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.add('hide'));
+  ['eventPane','addPane','memAddPane','memPickPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.add('hide'));
   document.getElementById('app').classList.add('hide');
   document.getElementById('pinScreen').classList.remove('hide');
 }
@@ -257,8 +273,9 @@ function showPin(){
 function setActiveTab(id){['tabPin','tabList','tabAdd','tabStats','tabSrc'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));}
 function show(id){
   screen=id;updateTabAdd();
-  ['app','eventPane','addPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
-  setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
+  ['app','eventPane','addPane','memAddPane','memPickPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
+  // пани добавления в группу — не табы, остаёмся на «Списке»
+  setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',memAddPane:'tabList',memPickPane:'tabList',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
 }
 function showTab(){pickEvent();}
 function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
@@ -422,7 +439,7 @@ function filtered(){
 
 let viewG=[];
 const expanded=new Set(); // открытые составы в виде «Команды»
-let pickFor=null,pickQ=''; // открытый поиск «+ Участник» (id гостя-владельца)
+let memFor=null,pickQ=''; // группа, в которую добавляем; строка поиска «+ Участник»
 // группа = командный билет по названию команды или типу билета:
 // так группы не обнуляются на данных, импортированных до появления поля team
 // тип билета главнее: сольный билет с мусором в колонке «название команды» — не группа
@@ -513,7 +530,6 @@ function countLine(){
 }
 function render(){
   updateScanCount();
-  const pickFocus=pickFor&&document.activeElement&&document.activeElement.id==='pickInput';
   const list=document.getElementById('list');
   let gs=filtered();
   if(viewMode==='groups')gs=gs.filter(isTeam); // одиночки в командном виде не показываем
@@ -542,10 +558,7 @@ function render(){
           const del=mi>0?`<button class="memdel" data-del="${mi}" data-mi="${i}" aria-label="Убрать из состава">✕</button>`:'';
           return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div>${del}</div>`;
         }).join('');
-        let pick='';
-        if(pickFor===g.id)
-          pick=`<div class="msearch"><input id="pickInput" placeholder="Фамилия или имя зарегистрированного" autocomplete="off"><button onclick="closePick()" aria-label="Закрыть поиск">✕</button></div><div class="mlist" id="pickBox">${pickRowsHTML(g)}</div>`;
-        body=`<div class="mlist">${rows}<div style="display:flex;gap:8px;margin-top:8px"><button style="flex:1" onclick="addMember(${i})">+ Гость</button><button style="flex:1" data-openpick="${i}">+ Участник</button></div>${pick}</div>`;
+        body=`<div class="mlist">${rows}<div style="display:flex;gap:8px;margin-top:8px"><button style="flex:1" onclick="openMemAdd('${g.id}')">+ Гость</button><button style="flex:1" onclick="openMemPick('${g.id}')">+ Участник</button></div></div>`;
       }
       const title=team?(g.team||g.name):g.name;
       const sub=team?`Капитан: ${esc(g.name)}${(g.members||[]).length?' · '+g.members.length+' чел.':''}`:esc(g.ticket_type||'');
@@ -557,10 +570,6 @@ function render(){
     }
   }
   list.innerHTML=html;
-  if(pickFor){
-    const el=document.getElementById('pickInput');
-    if(el){el.value=pickQ;if(pickFocus)el.focus();}
-  }
 }
 
 function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
@@ -643,22 +652,45 @@ function pickRowsHTML(g){
   return pickRows(g,pickQ).map((x,xi)=>
     `<div class="row" data-pick="${xi}"><div class="nm">${esc(x.name)}<div class="sub">${esc(x.ticket_type||'')}${x.team?' · '+esc(x.team):''}</div></div></div>`).join('');
 }
-function openPick(id){pickFor=pickFor===id?null:id;pickQ='';render();const el=document.getElementById('pickInput');if(el)el.focus();}
-function closePick(){pickFor=null;pickQ='';render();}
+function memGroupName(id){const g=guests.find(x=>x.id===id);return (g&&(g.team||g.name))||'';}
+function openMemAdd(id){
+  memFor=id;
+  document.getElementById('mName').value='';
+  document.getElementById('memErr').textContent='';
+  document.getElementById('memAddFor').textContent='В группу: '+memGroupName(id);
+  show('memAddPane');
+  document.getElementById('mName').focus();
+}
+function openMemPick(id){
+  memFor=id;pickQ='';
+  document.getElementById('pickInput').value='';
+  document.getElementById('memPickFor').textContent='В группу: '+memGroupName(id);
+  show('memPickPane');
+  renderPickBox();
+  document.getElementById('pickInput').focus();
+}
+function closeMemPanes(){memFor=null;pickQ='';closePanes();}
+function onPickInput(){pickQ=document.getElementById('pickInput').value;renderPickBox();}
+function renderPickBox(){
+  const g=guests.find(x=>x.id===memFor);
+  document.getElementById('pickBox').innerHTML=g?pickRowsHTML(g):'';
+}
 
-// человек в открытую группу: состав хранится на госте-владельце билета
-async function addMember(i){
-  const g=viewG[i];if(!g)return;
-  const n=prompt('Имя нового гостя');
-  if(!n||!n.trim())return;
+// новый человек в открытую группу: имя вручную, состав на госте-владельце
+async function saveMemGuest(){
+  const g=guests.find(x=>x.id===memFor);
+  if(!g)return;
+  const n=document.getElementById('mName').value.trim();
+  if(!n){document.getElementById('memErr').textContent='Введите имя';return;}
   // у команды без состава в roster числится сам капитан — сохраняем его первым
-  const members=(g.members&&g.members.length?g.members:[g.name]).concat([n.trim()]);
+  const members=(g.members&&g.members.length?g.members:[g.name]).concat([n]);
   g.members=members;
   const b={event,guest_id:g.id,team:g.team||'',members};
   if(navigator.onLine){
     try{await api('/api/team',{method:'POST',body:b});}
-    catch(e){alert(e.message);return;}
+    catch(e){document.getElementById('memErr').textContent=e.message;return;}
   }else qpush({t:'team',...b});
+  closeMemPanes();
   saveCache();render();await flushQueue();
 }
 
@@ -706,7 +738,7 @@ async function attachParticipant(g,hit){
   }else qpush({t:'team',...b});
   const m=Object.assign({},g.member_arrived||{});
   m[hit.name]=!!hit.arrived_at;
-  pickFor=null;pickQ='';
+  closeMemPanes();
   await pushMembers(g,m);
   await flushQueue();
 }
@@ -1047,11 +1079,9 @@ setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then
 document.getElementById('list').addEventListener('click',e=>{
   const del=e.target.closest('[data-del]');
   if(del){removeMember(+del.dataset.mi,+del.dataset.del);return;}
-  const op=e.target.closest('[data-openpick]');
-  if(op){const g=viewG[+op.dataset.openpick];if(g)openPick(g.id);return;}
   const pk=e.target.closest('[data-pick]');
   if(pk){
-    const g=guests.find(x=>x.id===pickFor);
+    const g=guests.find(x=>x.id===memFor);
     if(g)attachParticipant(g,pickRows(g,pickQ)[+pk.dataset.pick]);
     return;
   }
@@ -1073,14 +1103,6 @@ document.getElementById('list').addEventListener('click',e=>{
     render();return;
   }
   tap(g);
-});
-// подсказки «+ Участник» обновляются без перерисовки всей страницы
-document.getElementById('list').addEventListener('input',e=>{
-  if(e.target.id!=='pickInput')return;
-  pickQ=e.target.value;
-  const g=guests.find(x=>x.id===pickFor);
-  const box=document.getElementById('pickBox');
-  if(box&&g)box.innerHTML=pickRowsHTML(g);
 });
 syncView();
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
