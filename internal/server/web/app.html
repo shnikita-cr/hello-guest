@@ -43,7 +43,7 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .mlist button{background:#1f242c}
 .memdel{background:none;border:0;color:var(--mut);font-size:20px;padding:0 2px;min-height:0;cursor:pointer}
 .chev{padding-left:8px;align-self:stretch;display:flex;align-items:center;justify-content:center}
-.chev::after{content:'';width:0;height:0;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent var(--mut);transition:transform .15s}
+.chev::after{content:'';width:0;height:0;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent var(--mut);transform-origin:8px 10px;transition:transform .15s}
 .chev.open::after{transform:rotate(90deg)}
 .pane{position:fixed;top:0;left:0;right:0;bottom:56px;background:var(--bg);padding:12px;overflow:auto;z-index:10}
 .pane h2{margin:0 0 12px;font-size:20px}
