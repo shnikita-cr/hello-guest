@@ -122,21 +122,12 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <div class="field"><label>Имя *</label><input id="aName"></div>
   <div class="field"><label>Телефон</label><input id="aPhone" type="tel"></div>
   <div class="field"><label>Email</label><input id="aEmail" type="email"></div>
-  <div class="field"><label>Тип билета</label><input id="aType"></div>
+  <div class="field"><label>Тип билета</label><select id="aType"><option value="">—</option></select></div>
+  <div class="field"><label>Команда</label><select id="aTeam"><option value="">—</option></select></div>
   <button class="primary" onclick="saveGuest(true)">Сохранить и отметить</button>
   <button style="width:100%;margin-top:8px" onclick="saveGuest(false)">Сохранить без отметки</button>
   <button style="width:100%;margin-top:8px" onclick="closePanes()">Отмена</button>
   <div id="addErr" class="err"></div>
-</div>
-
-<!-- новый человек в открытую группу: имя вручную, в состав сразу -->
-<div id="memAddPane" class="pane hide">
-  <h2>Новый гость в группу</h2>
-  <div id="memAddFor" style="font-size:13px;color:var(--mut);margin:-6px 0 12px"></div>
-  <div class="field"><label>Имя *</label><input id="mName" autocomplete="off"></div>
-  <button class="primary" onclick="saveMemGuest()">Добавить в группу</button>
-  <button style="width:100%;margin-top:8px" onclick="closeMemPanes()">Назад</button>
-  <div id="memErr" class="err"></div>
 </div>
 
 <!-- уже зарегистрированный человек в открытую группу: поиск по списку -->
@@ -265,7 +256,7 @@ function showPin(){
   clearInterval(timer);
   screen='pin';updateTabAdd();
   setActiveTab('tabPin');
-  ['eventPane','addPane','memAddPane','memPickPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.add('hide'));
+  ['eventPane','addPane','memPickPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.add('hide'));
   document.getElementById('app').classList.add('hide');
   document.getElementById('pinScreen').classList.remove('hide');
 }
@@ -273,9 +264,9 @@ function showPin(){
 function setActiveTab(id){['tabPin','tabList','tabAdd','tabStats','tabSrc'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));}
 function show(id){
   screen=id;updateTabAdd();
-  ['app','eventPane','addPane','memAddPane','memPickPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
-  // пани добавления в группу — не табы, остаёмся на «Списке»
-  setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',memAddPane:'tabList',memPickPane:'tabList',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
+  ['app','eventPane','addPane','memPickPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
+  // страница поиска «+ Участник» — не таб, остаёмся на «Списке»
+  setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',memPickPane:'tabList',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
 }
 function showTab(){pickEvent();}
 function closePanes(){ if(event){enterEvent(event);} else {pickEvent();} }
@@ -653,13 +644,26 @@ function pickRowsHTML(g){
     `<div class="row" data-pick="${xi}"><div class="nm">${esc(x.name)}<div class="sub">${esc(x.ticket_type||'')}${x.team?' · '+esc(x.team):''}</div></div></div>`).join('');
 }
 function memGroupName(id){const g=guests.find(x=>x.id===id);return (g&&(g.team||g.name))||'';}
+// списки на странице «Новый гость»: типы из текущих гостей, команды из всех записей
+function fillAddSelects(g){
+  const types=new Set(['Сольный билет','Командный билет']);
+  const teams=new Set();
+  guests.forEach(x=>{if(x.ticket_type)types.add(x.ticket_type);if(x.team)teams.add(x.team);});
+  if(g)teams.add(g.team||g.name);
+  document.getElementById('aType').innerHTML='<option value="">—</option>'+
+    [...types].map(t=>`<option>${esc(t)}</option>`).join('');
+  document.getElementById('aTeam').innerHTML='<option value="">—</option>'+
+    [...teams].sort((a,b)=>a.localeCompare(b,'ru')).map(t=>`<option>${esc(t)}</option>`).join('');
+}
+// «+ Гость» на карточке группы: та же страница, тип и команда подставлены
 function openMemAdd(id){
   memFor=id;
-  document.getElementById('mName').value='';
-  document.getElementById('memErr').textContent='';
-  document.getElementById('memAddFor').textContent='В группу: '+memGroupName(id);
-  show('memAddPane');
-  document.getElementById('mName').focus();
+  const g=guests.find(x=>x.id===id);
+  fillAddSelects(g);
+  show('addPane');
+  document.getElementById('aType').value='Сольный билет';
+  document.getElementById('aTeam').value=memGroupName(id);
+  document.getElementById('aName').focus();
 }
 function openMemPick(id){
   memFor=id;pickQ='';
@@ -674,24 +678,6 @@ function onPickInput(){pickQ=document.getElementById('pickInput').value;renderPi
 function renderPickBox(){
   const g=guests.find(x=>x.id===memFor);
   document.getElementById('pickBox').innerHTML=g?pickRowsHTML(g):'';
-}
-
-// новый человек в открытую группу: имя вручную, состав на госте-владельце
-async function saveMemGuest(){
-  const g=guests.find(x=>x.id===memFor);
-  if(!g)return;
-  const n=document.getElementById('mName').value.trim();
-  if(!n){document.getElementById('memErr').textContent='Введите имя';return;}
-  // у команды без состава в roster числится сам капитан — сохраняем его первым
-  const members=(g.members&&g.members.length?g.members:[g.name]).concat([n]);
-  g.members=members;
-  const b={event,guest_id:g.id,team:g.team||'',members};
-  if(navigator.onLine){
-    try{await api('/api/team',{method:'POST',body:b});}
-    catch(e){document.getElementById('memErr').textContent=e.message;return;}
-  }else qpush({t:'team',...b});
-  closeMemPanes();
-  saveCache();render();await flushQueue();
 }
 
 // убрать члена из состава: состав и поимённая отметка на госте-владельце
@@ -760,7 +746,14 @@ async function flushQueue(){
   updateQueueN();
 }
 
-function openAdd(){show('addPane');document.getElementById('aName').focus();}
+function openAdd(){
+  memFor=null;
+  fillAddSelects();
+  ['aName','aPhone','aEmail','aType','aTeam'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('addErr').textContent='';
+  show('addPane');
+  document.getElementById('aName').focus();
+}
 function addTab(){viewMode==='groups'?addGroup():openAdd();}
 
 let qrStream=null,qrRaf=null,qrCanvas=null,qrRot=null,qrBlur=null,qrLast='',qrLastTS=0,qrFlashT=null,qrFrame=0,zxFast=null,zxHard=null;
@@ -1015,7 +1008,8 @@ async function saveGuest(mark){
   const payload={id:'walkin:'+Math.random().toString(36).slice(2,10),event,name,
     phone:document.getElementById('aPhone').value.trim(),
     email:document.getElementById('aEmail').value.trim(),
-    ticket_type:document.getElementById('aType').value.trim()};
+    ticket_type:document.getElementById('aType').value.trim(),
+    team:document.getElementById('aTeam').value.trim()};
   if(navigator.onLine){
     try{await api('/api/guest',{method:'POST',body:payload});}
     catch(e){document.getElementById('addErr').textContent=e.message;return;}
@@ -1024,8 +1018,24 @@ async function saveGuest(mark){
   }
   if(mark)qpush({t:'checkin',event,guest_id:payload.id,device:deviceName(),via:'tap'});
   guests.push(Object.assign({arrived_at:mark?new Date().toISOString():''},payload));
+  // открыто с карточки группы — новый человек входит в состав владельца билета
+  const og=memFor?guests.find(x=>x.id===memFor):null;
+  if(og){
+    const members=(og.members&&og.members.length?og.members:[og.name]).concat([payload.name]);
+    og.members=members;
+    const b={event,guest_id:og.id,team:og.team||'',members};
+    if(navigator.onLine){
+      try{await api('/api/team',{method:'POST',body:b});}catch(e){qpush({t:'team',...b});}
+    }else qpush({t:'team',...b});
+    if(mark){
+      const m=Object.assign({},og.member_arrived||{});
+      m[payload.name]=true;
+      await pushMembers(og,m);
+    }
+  }
+  memFor=null;
   saveCache();render();
-  ['aName','aPhone','aEmail','aType'].forEach(i=>document.getElementById(i).value='');
+  ['aName','aPhone','aEmail','aType','aTeam'].forEach(i=>document.getElementById(i).value='');
   closePanes();
   await flushQueue();
 }
