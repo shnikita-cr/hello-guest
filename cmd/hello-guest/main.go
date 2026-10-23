@@ -155,7 +155,8 @@ func main() {
 		} else {
 			tlsL = l
 			go func() {
-				tlsSrv := &http.Server{Handler: srv.Handler()}
+				// ReadHeaderTimeout — защита от Slowloris (gosec G112)
+				tlsSrv := &http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
 				if err := tlsSrv.Serve(tls.NewListener(l, &tls.Config{Certificates: []tls.Certificate{cert}})); err != nil && !errors.Is(err, net.ErrClosed) {
 					printf("TLS: %v\n", err)
 				}
@@ -237,7 +238,8 @@ func main() {
 		os.Exit(0)
 	}()
 
-	if err := http.Serve(listener, srv.Handler()); err != nil && !errors.Is(err, net.ErrClosed) {
+	// ReadHeaderTimeout — защита от Slowloris (gosec G114)
+	if err := (&http.Server{Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}).Serve(listener); err != nil && !errors.Is(err, net.ErrClosed) {
 		log.Fatal(err)
 	}
 	// слушатель закрыли стоп/рестарт/сигнал — завершает сам обработчик,

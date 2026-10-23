@@ -514,3 +514,89 @@ func TestTouchKeepsDevice(t *testing.T) {
 		t.Fatalf("пустой опрос затёр код устройства: %q", dev)
 	}
 }
+
+// Брутфорс6-значного PIN: с pinFailsAllowed+1 неудачи с одного адреса — 429.
+func TestPinBruteForceBlocked(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	remote := "10.44.0.9:1234"
+	for i := 0; i < pinFailsAllowed; i++ {
+		rr := doFrom(s, "GET", "/api/pin", "", remote, "000000")
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: code=%d", i+1, rr.Code)
+		}
+	}
+	rr := doFrom(s, "GET", "/api/pin", "", remote, "123456")
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("blocked even with correct pin: code=%d", rr.Code)
+	}
+	rr = doFrom(s, "GET", "/api/pin", "", "10.44.0.10:1234", "123456")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("other address must work: code=%d", rr.Code)
+	}
+}
+
+// Ошибка записи журнала при undo —500, а не маскировка под «guest not found».
+func TestUndoDiskErrorIs500(t *testing.T) {
+	s, st, _ := newTestServer(t)
+	if _, _, err := st.Upsert([]store.Guest{{ID: "g1", Event: "e1", Name: "A"}}); err != nil {
+		t.Fatal(err)
+	}
+	st.Close() // диск закрыт — append в store упадёт
+	rr := do(s, "POST", "/api/undo", `{"event":"e1","guest_id":"g1"}`)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+// device из /api/pin приходит без проверки PIN и попадает в innerHTML
+// статус-страницы — вредоносный код должен отбрасываться на входе.
+func TestTouchSanitizesDevice(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	doFrom(s, "GET", "/api/pin?device=%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E", "", "10.77.0.2:9", "000000")
+	evs := s.clientEvents()
+	if len(evs) != 1 {
+		t.Fatalf("events: %d", len(evs))
+	}
+	if evs[0].Device != "" {
+		t.Fatalf("device not sanitized: %q", evs[0].Device)
+	}
+}
+
+// Санитизация device: границы — ровно 64 символа проходят,65-й обрезается,
+// запрещённый символ или пустая строка → ничего не записываем.
+func TestSanitizeDeviceBounds(t *testing.T) {
+	if got := sanitizeDevice(strings.Repeat("a", 64)); len(got) != 64 {
+		t.Fatalf("64 chars must pass, got %d", len(got))
+	}
+	if got := sanitizeDevice(strings.Repeat("a", 65)); len(got) != 64 {
+		t.Fatalf("must truncate to 64, got %d", len(got))
+	}
+	if got := sanitizeDevice("dev (1). ok_go-1,2"); got != "dev (1). ok_go-1,2" {
+		t.Fatalf("allowed chars rejected: %q", got)
+	}
+	for _, bad := range []string{"<img>", "a=b", "a\"b", "dev\u0000x", "никита"} {
+		if got := sanitizeDevice(bad); got != "" {
+			t.Fatalf("must reject %q, got %q", bad, got)
+		}
+	}
+}
+
+// Верный PIN сбрасывает счётчик неудач: после9 ошибок и одного успеха
+// следующие9 ошибок снова не блокируют (без сброса это была бы блокировка).
+func TestPinFailCounterResetsOnSuccess(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	remote := "10.55.0.9:1234"
+	for i := 0; i < pinFailsAllowed-1; i++ {
+		if rr := doFrom(s, "GET", "/api/pin", "", remote, "000000"); rr.Code != http.StatusUnauthorized {
+			t.Fatalf("fail %d: code=%d", i+1, rr.Code)
+		}
+	}
+	if rr := doFrom(s, "GET", "/api/pin", "", remote, "123456"); rr.Code != http.StatusOK {
+		t.Fatalf("correct pin: code=%d", rr.Code)
+	}
+	for i := 0; i < pinFailsAllowed-1; i++ {
+		if rr := doFrom(s, "GET", "/api/pin", "", remote, "000000"); rr.Code != http.StatusUnauthorized {
+			t.Fatalf("after reset fail %d: code=%d (counter not cleared)", i+1, rr.Code)
+		}
+	}
+}

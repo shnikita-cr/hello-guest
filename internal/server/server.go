@@ -104,6 +104,9 @@ type Server struct {
 	seen    map[string]seenInfo
 	events  []clientEvent
 	started time.Time
+
+	pinMu    sync.Mutex
+	pinFails map[string][]time.Time // адрес → неудачные попытки PIN за последнюю минуту
 }
 
 // clientEvent: устройство подключилось или вышло из сети (по опросам страниц).
@@ -126,7 +129,7 @@ var Version = "dev"
 
 func New(cfg *Config, st *store.Store, dataDir string) *Server {
 	s := &Server{cfg: cfg, store: st, mux: http.NewServeMux(), now: time.Now, dataDir: dataDir,
-		seen: map[string]seenInfo{}, started: time.Now()}
+		seen: map[string]seenInfo{}, started: time.Now(), pinFails: map[string][]time.Time{}}
 	s.routes()
 	return s
 }
@@ -192,7 +195,7 @@ func (s *Server) touch(r *http.Request) {
 	if ip := net.ParseIP(host); ip == nil || ip.IsLoopback() {
 		return
 	}
-	dev := r.URL.Query().Get("device")
+	dev := sanitizeDevice(r.URL.Query().Get("device"))
 	s.seenMu.Lock()
 	defer s.seenMu.Unlock()
 	prev, existed := s.seen[host]
@@ -207,6 +210,59 @@ func (s *Server) touch(r *http.Request) {
 }
 
 func nowHM() string { return time.Now().Format("15:04:05") }
+
+// sanitizeDevice: device приходит в /api/pin без проверки PIN и попадает
+// в innerHTML статус-страницы — оставляем только безопасные символы, ≤64.
+func sanitizeDevice(s string) string {
+	if len(s) > 64 {
+		s = s[:64]
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == ' ' || r == '.' || r == ',' || r == '-' || r == '_' || r == '(' || r == ')':
+		default:
+			return ""
+		}
+	}
+	return s
+}
+
+// pinBlocked/failPin/okPin: брутфорс6-значного PIN ограничивается
+// pinFailsAllowed неудачами в минуту с одного адреса; верный PIN сбрасывает.
+const pinFailsAllowed = 10
+
+func (s *Server) pinBlocked(ip string) bool {
+	s.pinMu.Lock()
+	defer s.pinMu.Unlock()
+	cut := time.Now().Add(-time.Minute)
+	n := 0
+	for _, at := range s.pinFails[ip] {
+		if at.After(cut) {
+			n++
+		}
+	}
+	return n >= pinFailsAllowed
+}
+
+func (s *Server) failPin(ip string) {
+	s.pinMu.Lock()
+	defer s.pinMu.Unlock()
+	cut := time.Now().Add(-time.Minute)
+	var kept []time.Time
+	for _, at := range s.pinFails[ip] {
+		if at.After(cut) {
+			kept = append(kept, at)
+		}
+	}
+	s.pinFails[ip] = append(kept, time.Now())
+}
+
+func (s *Server) okPin(ip string) {
+	s.pinMu.Lock()
+	defer s.pinMu.Unlock()
+	delete(s.pinFails, ip)
+}
 
 func (s *Server) pushEventLocked(e clientEvent) {
 	s.events = append(s.events, e)
@@ -253,25 +309,39 @@ func (s *Server) clientEvents() []clientEvent {
 func (s *Server) authed(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.touch(r)
+		ip := remoteHost(r)
+		if s.pinBlocked(ip) {
+			writeErr(w, http.StatusTooManyRequests, "too many attempts, wait a minute")
+			return
+		}
 		pin := r.Header.Get("X-Pin")
 		if pin == "" {
 			pin = r.URL.Query().Get("pin")
 		}
 		if !s.cfg.Check(pin) {
+			s.failPin(ip)
 			writeErr(w, http.StatusUnauthorized, "bad pin")
 			return
 		}
+		s.okPin(ip)
 		h(w, r)
 	}
 }
 
 func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 	s.touch(r)
+	ip := remoteHost(r)
+	if s.pinBlocked(ip) {
+		writeErr(w, http.StatusTooManyRequests, "too many attempts, wait a minute")
+		return
+	}
 	pin := r.Header.Get("X-Pin")
 	if s.cfg.Check(pin) {
+		s.okPin(ip)
 		writeJSON(w, map[string]bool{"ok": true})
 		return
 	}
+	s.failPin(ip)
 	writeErr(w, http.StatusUnauthorized, "bad pin")
 }
 
@@ -520,7 +590,11 @@ func (s *Server) handleUndo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.UndoCheckin(req.Event, req.Guest); err != nil {
-		writeErr(w, http.StatusNotFound, "guest not found")
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, "guest not found")
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, map[string]bool{"ok": true})
