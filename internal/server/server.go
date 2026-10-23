@@ -687,7 +687,49 @@ func (s *Server) handleAdminReport(w http.ResponseWriter, r *http.Request) {
 	for _, rec := range s.store.Checkins(ev) {
 		via[rec.GuestID] = rec.Via
 	}
-	rows := [][]string{{"Имя", "Email", "Телефон", "Тип билета", "Номер билета", "Штрихкод", "Отмечен", "Время прихода", "Способ", "Источник"}}
+	// «до» — первое состояние гостя; группы: своя команда либо членство в составе владельца
+	pair := func(before, now string) string {
+		if before == "" {
+			before = "—"
+		}
+		if now == "" {
+			now = "—"
+		}
+		if before == now {
+			return now
+		}
+		return before + " → " + now
+	}
+	curOwner, origOwner := map[string]string{}, map[string]string{}
+	for _, x := range guests {
+		owner := x.Team
+		if owner == "" {
+			owner = x.Name
+		}
+		for _, n := range x.Members {
+			if _, ok := curOwner[n]; !ok {
+				curOwner[n] = owner
+			}
+		}
+		if o, ok := s.store.Original(ev, x.ID); ok {
+			oo := o.Team
+			if oo == "" {
+				oo = o.Name
+			}
+			for _, n := range o.Members {
+				if _, ok := origOwner[n]; !ok {
+					origOwner[n] = oo
+				}
+			}
+		}
+	}
+	teamNow := func(g store.Guest) string {
+		if g.Team != "" {
+			return g.Team
+		}
+		return curOwner[g.Name]
+	}
+	rows := [][]string{{"Имя", "Email", "Телефон", "Билет (до → сейчас)", "Группа (до → сейчас)", "Номер билета", "Штрихкод", "Отмечен", "Время прихода", "Способ", "Источник"}}
 	for _, g := range guests {
 		marked, arrived := "—", ""
 		if g.ArrivedAt != "" {
@@ -709,7 +751,16 @@ func (s *Server) handleAdminReport(w http.ResponseWriter, r *http.Request) {
 		if g.Source == "walkin" {
 			src = "вручную"
 		}
-		rows = append(rows, []string{g.Name, g.Email, g.Phone, g.TicketType, g.TicketNumber, g.Barcode, marked, arrived, method, src})
+		o, has := s.store.Original(ev, g.ID)
+		beforeTicket, beforeTeam := "", ""
+		if has {
+			beforeTicket = o.TicketType
+			beforeTeam = o.Team
+			if beforeTeam == "" {
+				beforeTeam = origOwner[o.Name]
+			}
+		}
+		rows = append(rows, []string{g.Name, g.Email, g.Phone, pair(beforeTicket, g.TicketType), pair(beforeTeam, teamNow(g)), g.TicketNumber, g.Barcode, marked, arrived, method, src})
 	}
 	var payload []byte
 	ext, ct := ".csv", "text/csv; charset=utf-8"
