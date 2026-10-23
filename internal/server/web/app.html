@@ -75,7 +75,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="pinScreen" class="pinwrap">
   <div id="offlineBar7" class="offline hide" style="position:fixed;top:0;left:0;right:0;z-index:40">нет связи, <span id="queueN7">0</span> в очереди</div>
-  <h1 style="width:100%;max-width:340px;display:flex;align-items:center"><span>👋 Hello Guest</span><span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span id="hgVer" style="font-size:14px;color:var(--mut);font-weight:400"></span><span id="liveDot7" class="dot">❤️</span></span></h1>
+  <h1 style="width:100%;max-width:340px;display:flex;align-items:center"><span>👋 Hello Guest</span><span style="margin-left:auto;display:flex;align-items:center;gap:8px"><span id="hgVer" class="ver" style="font-size:14px;color:var(--mut);font-weight:400"></span><span id="liveDot7" class="dot">❤️</span></span></h1>
   <input id="pinInput" type="tel" inputmode="numeric" maxlength="6" placeholder="PIN">
   <button class="primary" onclick="submitPin()">Войти</button>
   <div id="pinErr" class="err"></div>
@@ -94,7 +94,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <div class="top">
     <button onclick="pickEvent()">←</button>
     <h1 id="evTitle"></h1>
-    <span id="hgVer2" style="font-size:13px;color:var(--mut);font-weight:400"></span>
+    <span id="hgVer2" class="ver" style="font-size:13px;color:var(--mut);font-weight:400"></span>
     <span id="liveDot" class="dot">❤️</span>
   </div>
   <div class="count" id="countLine">пришло 0 / 0</div>
@@ -109,7 +109,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <div id="offlineBar2" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN2">0</span> в очереди</div>
   <div style="display:flex;align-items:center;gap:8px">
     <h2 style="flex:1">Мероприятия</h2>
-    <span id="hgVer3" style="font-size:13px;color:var(--mut);font-weight:400"></span>
+    <span id="hgVer3" class="ver" style="font-size:13px;color:var(--mut);font-weight:400"></span>
     <span id="liveDot2" class="dot">❤️</span>
   </div>
   <button class="primary" onclick="openSrc()" style="margin-bottom:12px">Загрузить выгрузку</button>
@@ -118,7 +118,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="addPane" class="pane hide">
   <div id="offlineBar3" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN3">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Новый гость</h2><span id="liveDot4" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Новый гость</h2><span class="ver" style="font-size:13px;color:var(--mut);font-weight:400"></span><span id="liveDot4" class="dot">❤️</span></div>
   <div class="field"><label>Имя Фамилия *</label><input id="aName"></div>
   <div class="field"><label>Телефон</label><input id="aPhone" type="tel"></div>
   <div class="field"><label>Email</label><input id="aEmail" type="email"></div>
@@ -132,7 +132,8 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <!-- уже зарегистрированный человек в открытую группу: поиск по списку -->
 <div id="memPickPane" class="pane hide">
-  <h2>Добавить участника в группу</h2>
+  <div class="offline hide" style="margin:-12px -12px 12px">нет связи, <span>0</span> в очереди</div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Добавить участника в группу</h2><span class="ver" style="font-size:13px;color:var(--mut);font-weight:400"></span><span class="dot">❤️</span></div>
   <div id="memPickFor" style="font-size:13px;color:var(--mut);margin:-6px 0 12px"></div>
   <input id="pickInput" placeholder="Фамилия или имя зарегистрированного" oninput="onPickInput()" autocomplete="off">
   <div class="mlist" id="pickBox"></div>
@@ -141,7 +142,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="statsPane" class="pane hide">
   <div id="offlineBar4" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN4">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Статистика</h2><span id="liveDot5" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Статистика</h2><span class="ver" style="font-size:13px;color:var(--mut);font-weight:400"></span><span id="liveDot5" class="dot">❤️</span></div>
   <div class="stats">
     <div class="stat"><div class="v" id="sArrived">0</div><div class="l">пришло</div></div>
     <div class="stat"><div class="v" id="sTotal">0</div><div class="l">всего</div></div>
@@ -160,7 +161,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 
 <div id="srcPane" class="pane hide">
   <div id="offlineBar5" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN5">0</span> в очереди</div>
-  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Источники</h2><span id="liveDot6" class="dot">❤️</span></div>
+  <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Источники</h2><span class="ver" style="font-size:13px;color:var(--mut);font-weight:400"></span><span id="liveDot6" class="dot">❤️</span></div>
   <p style="color:var(--mut);font-size:14px">Импорт выгрузки Timepad (CSV или XLSX) или подтягивание через API в текущее мероприятие.</p>
   <div class="field">
     <label>Мероприятие (куда загружать)</label>
@@ -195,6 +196,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   <div style="max-width:640px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:8px">
       <h2 style="flex:1">Сканер QR</h2>
+      <span class="ver" style="font-size:13px;color:var(--mut);font-weight:400"></span>
       <span id="liveDot3" class="dot">❤️</span>
     </div>
     <video id="qrVideo" autoplay playsinline muted style="width:100%;max-height:50vh;object-fit:cover;border-radius:12px;background:#111"></video>
@@ -383,18 +385,14 @@ async function enterEvent(ev){
 }
 
 function setLive(ok){
-  ['liveDot','liveDot2','liveDot3','liveDot4','liveDot5','liveDot6','liveDot7'].forEach(id=>{
-    const d=document.getElementById(id);if(!d)return;
+  document.querySelectorAll('.dot').forEach(d=>{
     d.textContent=ok?'❤️':'💙';
     d.classList.toggle('bad',!ok);
   });
-  ['offlineBar','offlineBar2','offlineBar3','offlineBar4','offlineBar5','offlineBar6','offlineBar7'].forEach(id=>{
-    const b=document.getElementById(id);if(!b)return;
-    b.classList.toggle('hide',ok);
-  });
+  document.querySelectorAll('.offline').forEach(b=>b.classList.toggle('hide',ok));
   updateQueueN();
 }
-function updateQueueN(){['queueN','queueN2','queueN3','queueN4','queueN5','queueN6','queueN7'].forEach(id=>{const n=document.getElementById(id);if(n)n.textContent=queue.length;});}
+function updateQueueN(){document.querySelectorAll('.offline span').forEach(n=>n.textContent=queue.length);}
 
 async function refresh(){
   try{
@@ -1093,7 +1091,7 @@ window.addEventListener('online',()=>{flushQueue();refresh();});
 // мгновенная реакция на потерю сети на любой открытой странице
 window.addEventListener('offline',()=>setLive(false));
 // опрос соединения: сердце и полоска обновляются даже без опроса состояния
-function loadVer(){const els=['hgVer','hgVer2','hgVer3'].map(id=>document.getElementById(id)).filter(Boolean);if(els.length&&els.every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
+function loadVer(){const els=document.querySelectorAll('.ver');if(els.length&&[...els].every(e=>e.textContent))return;api('/api/version').then(d=>els.forEach(e=>e.textContent='v'+d.version)).catch(()=>{});}
 loadVer();
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>{if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();showPin();}else setLive(false);});},2500);
 document.getElementById('list').addEventListener('click',e=>{
