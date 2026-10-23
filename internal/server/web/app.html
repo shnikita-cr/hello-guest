@@ -45,6 +45,8 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .memhandle{touch-action:none;cursor:grab;color:var(--mut);font-size:18px;padding:6px 4px;user-select:none;-webkit-user-select:none}
 .mlist .row.dragging{position:relative;z-index:5;border-color:var(--acc);box-shadow:0 6px 18px rgba(0,0,0,.45);opacity:.95}
 .mlist .row.droptarget{border-color:var(--acc)}
+.dropzone{border:1.5px dashed #3a424d;border-radius:12px;padding:20px 12px;text-align:center;color:var(--mut);font-size:14px;cursor:pointer;background:#171b21}
+.dropzone.on{border-color:var(--acc);background:#1e2836;color:var(--fg)}
 .chev{padding-left:8px;align-self:stretch;display:flex;align-items:center;justify-content:center}
 .chev::after{content:'';width:0;height:0;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent var(--mut);transform-origin:8px 10px;transition:transform .15s}
 .chev.open::after{transform:rotate(90deg)}
@@ -172,7 +174,10 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   </div>
   <div class="field">
     <label>Файл выгрузки CSV / XLSX</label>
-    <input id="srcFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    <div class="dropzone" id="srcDrop">
+      <input id="srcFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">
+      <div id="srcDropText">Перетащите файл сюда или нажмите, чтобы выбрать</div>
+    </div>
   </div>
   <button class="primary" onclick="doImport()">Импортировать файл</button>
   <h2 style="font-size:16px;margin-top:24px">Timepad API</h2>
@@ -794,6 +799,24 @@ async function reorderMember(i,mi,k){
   }else qpush({t:'team',...b});
   saveCache();render();await flushQueue();
 }
+
+// drag & drop выгрузки в поле файла
+(function(){
+  const dz=document.getElementById('srcDrop'),inp=document.getElementById('srcFile'),txt=document.getElementById('srcDropText');
+  const upd=()=>{const f=inp.files&&inp.files[0];txt.textContent=f?f.name+' — нажмите, чтобы заменить':'Перетащите файл сюда или нажмите, чтобы выбрать';};
+  inp.addEventListener('change',upd);
+  dz.addEventListener('click',()=>inp.click());
+  ['dragenter','dragover'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.add('on');}));
+  dz.addEventListener('dragleave',()=>dz.classList.remove('on'));
+  dz.addEventListener('drop',e=>{
+    e.preventDefault();dz.classList.remove('on');
+    const fs=e.dataTransfer&&e.dataTransfer.files;
+    if(!fs||!fs.length)return;
+    try{const dt=new DataTransfer();dt.items.add(fs[0]);inp.files=dt.files;upd();}catch(_){txt.textContent='Не удалось принять файл — выберите вручную';}
+  });
+})();
+// браузер не должен открывать файл, если промахнулся мимо зоны
+['dragover','drop'].forEach(t=>window.addEventListener(t,e=>e.preventDefault()));
 
 async function flushQueue(){
   if(!queue.length||!navigator.onLine)return;
