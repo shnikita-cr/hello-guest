@@ -52,6 +52,7 @@ type Store struct {
 	path     string
 	file     *os.File
 	guests   map[string]map[string]*Guest
+	original map[string]Guest // первое состояние гостя: event+"\x00"+id, для отчёта «до/после»
 	checkins map[string][]Record
 	qrmiss   map[string][]Record
 	undo     map[string][]Record
@@ -72,6 +73,7 @@ func Open(path string) (*Store, error) {
 		path:     path,
 		file:     f,
 		guests:   map[string]map[string]*Guest{},
+		original: map[string]Guest{},
 		checkins: map[string][]Record{},
 		qrmiss:   map[string][]Record{},
 		undo:     map[string][]Record{},
@@ -116,6 +118,10 @@ func (s *Store) apply(r *Record) {
 		g.Event = r.Event
 		if g.Barcode == "" {
 			g.Barcode = BarcodeFromTicket(g.TicketNumber)
+		}
+		key := r.Event + "\x00" + g.ID
+		if _, ok := s.original[key]; !ok {
+			s.original[key] = g
 		}
 		if prev, ok := s.guests[r.Event][g.ID]; ok {
 			if prev.ArrivedAt != "" && g.ArrivedAt == "" {
@@ -402,6 +408,14 @@ func (s *Store) HideEvent(event string, hidden bool) error {
 	}
 	s.apply(&r)
 	return nil
+}
+
+// Original — первое состояние гостя (каким он пришёл при создании или импорте).
+func (s *Store) Original(event, id string) (Guest, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	g, ok := s.original[event+"\x00"+id]
+	return g, ok
 }
 
 func (s *Store) Search(event, query string) []Guest {

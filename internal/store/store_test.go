@@ -397,6 +397,20 @@ func TestJournal(t *testing.T) {
 	}
 }
 
+func TestOriginalKeepsFirstState(t *testing.T) {
+	s := tempStore(t)
+	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "Иван", TicketType: "Сольный билет", Team: "X"}})
+	s.Upsert([]Guest{{ID: "g1", Event: "e1", Name: "Иван", TicketType: "Командный билет", Team: "Y"}})
+	o, ok := s.Original("e1", "g1")
+	if !ok || o.TicketType != "Сольный билет" || o.Team != "X" {
+		t.Fatalf("original: ok=%v %+v", ok, o)
+	}
+	got := s.Search("e1", "")
+	if len(got) != 1 || got[0].TicketType != "Командный билет" || got[0].Team != "Y" {
+		t.Fatalf("current: %+v", got)
+	}
+}
+
 func mapsEqual(a, b map[string]int) bool {
 	if len(a) != len(b) {
 		return false
