@@ -459,4 +459,21 @@ func TestRenameKeepsJournalsAndOriginal(t *testing.T) {
 	if len(s.Checkins("new")) != 1 || len(s.Checkins("old")) != 0 {
 		t.Fatal("checkins not moved with the event")
 	}
+	// restart: журнал переименования должен повторно перенести всё из ndjson
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := Open(filepath.Join(filepath.Dir(s.path), "test.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Close()
+	if _, ok := s2.Original("new", "g1"); !ok {
+		t.Fatal("original lost after replay")
+	}
+	for _, a := range s2.Journal() {
+		if a.Event != "new" {
+			t.Fatalf("after replay action on old event: %+v", a)
+		}
+	}
 }

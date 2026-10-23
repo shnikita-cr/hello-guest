@@ -561,3 +561,42 @@ func TestTouchSanitizesDevice(t *testing.T) {
 		t.Fatalf("device not sanitized: %q", evs[0].Device)
 	}
 }
+
+// Санитизация device: границы — ровно 64 символа проходят,65-й обрезается,
+// запрещённый символ или пустая строка → ничего не записываем.
+func TestSanitizeDeviceBounds(t *testing.T) {
+	if got := sanitizeDevice(strings.Repeat("a", 64)); len(got) != 64 {
+		t.Fatalf("64 chars must pass, got %d", len(got))
+	}
+	if got := sanitizeDevice(strings.Repeat("a", 65)); len(got) != 64 {
+		t.Fatalf("must truncate to 64, got %d", len(got))
+	}
+	if got := sanitizeDevice("dev (1). ok_go-1,2"); got != "dev (1). ok_go-1,2" {
+		t.Fatalf("allowed chars rejected: %q", got)
+	}
+	for _, bad := range []string{"<img>", "a=b", "a\"b", "dev\u0000x", "никита"} {
+		if got := sanitizeDevice(bad); got != "" {
+			t.Fatalf("must reject %q, got %q", bad, got)
+		}
+	}
+}
+
+// Верный PIN сбрасывает счётчик неудач: после9 ошибок и одного успеха
+// следующие9 ошибок снова не блокируют (без сброса это была бы блокировка).
+func TestPinFailCounterResetsOnSuccess(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	remote := "10.55.0.9:1234"
+	for i := 0; i < pinFailsAllowed-1; i++ {
+		if rr := doFrom(s, "GET", "/api/pin", "", remote, "000000"); rr.Code != http.StatusUnauthorized {
+			t.Fatalf("fail %d: code=%d", i+1, rr.Code)
+		}
+	}
+	if rr := doFrom(s, "GET", "/api/pin", "", remote, "123456"); rr.Code != http.StatusOK {
+		t.Fatalf("correct pin: code=%d", rr.Code)
+	}
+	for i := 0; i < pinFailsAllowed-1; i++ {
+		if rr := doFrom(s, "GET", "/api/pin", "", remote, "000000"); rr.Code != http.StatusUnauthorized {
+			t.Fatalf("after reset fail %d: code=%d (counter not cleared)", i+1, rr.Code)
+		}
+	}
+}
