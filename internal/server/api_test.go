@@ -514,3 +514,50 @@ func TestTouchKeepsDevice(t *testing.T) {
 		t.Fatalf("пустой опрос затёр код устройства: %q", dev)
 	}
 }
+
+// Брутфорс6-значного PIN: с pinFailsAllowed+1 неудачи с одного адреса — 429.
+func TestPinBruteForceBlocked(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	remote := "10.44.0.9:1234"
+	for i := 0; i < pinFailsAllowed; i++ {
+		rr := doFrom(s, "GET", "/api/pin", "", remote, "000000")
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: code=%d", i+1, rr.Code)
+		}
+	}
+	rr := doFrom(s, "GET", "/api/pin", "", remote, "123456")
+	if rr.Code != http.StatusTooManyRequests {
+		t.Fatalf("blocked even with correct pin: code=%d", rr.Code)
+	}
+	rr = doFrom(s, "GET", "/api/pin", "", "10.44.0.10:1234", "123456")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("other address must work: code=%d", rr.Code)
+	}
+}
+
+// Ошибка записи журнала при undo —500, а не маскировка под «guest not found».
+func TestUndoDiskErrorIs500(t *testing.T) {
+	s, st, _ := newTestServer(t)
+	if _, _, err := st.Upsert([]store.Guest{{ID: "g1", Event: "e1", Name: "A"}}); err != nil {
+		t.Fatal(err)
+	}
+	st.Close() // диск закрыт — append в store упадёт
+	rr := do(s, "POST", "/api/undo", `{"event":"e1","guest_id":"g1"}`)
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("code=%d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+// device из /api/pin приходит без проверки PIN и попадает в innerHTML
+// статус-страницы — вредоносный код должен отбрасываться на входе.
+func TestTouchSanitizesDevice(t *testing.T) {
+	s, _, _ := newTestServer(t)
+	doFrom(s, "GET", "/api/pin?device=%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E", "", "10.77.0.2:9", "000000")
+	evs := s.clientEvents()
+	if len(evs) != 1 {
+		t.Fatalf("events: %d", len(evs))
+	}
+	if evs[0].Device != "" {
+		t.Fatalf("device not sanitized: %q", evs[0].Device)
+	}
+}

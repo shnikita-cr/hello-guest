@@ -422,3 +422,41 @@ func mapsEqual(a, b map[string]int) bool {
 	}
 	return true
 }
+
+// Переименование события должно увезти с собой все журналы и «первоначальное
+// состояние» гостей — иначе история приходов и колонка «до» отчёта теряются.
+func TestRenameKeepsJournalsAndOriginal(t *testing.T) {
+	s := tempStore(t)
+	s.Upsert([]Guest{{ID: "g1", Event: "old", Name: "A", Team: "T"}})
+	if _, err := s.Checkin("old", "g1", "d", "tap", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UndoCheckin("old", "g1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.QRMiss("old", "9999"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RenameEvent("old", "new"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := s.Original("new", "g1"); !ok {
+		t.Fatal("original state stayed on the old event")
+	}
+	if _, ok := s.Original("old", "g1"); ok {
+		t.Fatal("original state left behind after rename")
+	}
+	n := 0
+	for _, a := range s.Journal() {
+		if a.Event != "new" {
+			t.Fatalf("journal action left on old event: %+v", a)
+		}
+		n++
+	}
+	if n < 3 {
+		t.Fatalf("journal lost actions after rename: %d", n)
+	}
+	if len(s.Checkins("new")) != 1 || len(s.Checkins("old")) != 0 {
+		t.Fatal("checkins not moved with the event")
+	}
+}

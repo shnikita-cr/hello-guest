@@ -173,9 +173,20 @@ func (s *Store) apply(r *Record) {
 			s.guests[r.New] = gs
 			delete(s.guests, r.Event)
 		}
-		if cs, ok := s.checkins[r.Event]; ok {
-			s.checkins[r.New] = cs
-			delete(s.checkins, r.Event)
+		// все журналы и «первоначальное состояние» переезжают вместе с событием —
+		// иначе после переименования теряются история приходов и колонка «до» отчёта
+		for _, m := range []map[string][]Record{s.checkins, s.undo, s.again, s.qrmiss, s.adds} {
+			if rec, ok := m[r.Event]; ok {
+				m[r.New] = rec
+				delete(m, r.Event)
+			}
+		}
+		pfx := r.Event + "\x00"
+		for k, v := range s.original {
+			if strings.HasPrefix(k, pfx) {
+				s.original[r.New+"\x00"+strings.TrimPrefix(k, pfx)] = v
+				delete(s.original, k)
+			}
 		}
 		if h, ok := s.hidden[r.Event]; ok {
 			s.hidden[r.New] = h

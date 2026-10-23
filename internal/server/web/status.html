@@ -80,6 +80,8 @@ button:disabled{opacity:.5}
 </div>
 <script>
 const $ = id => document.getElementById(id);
+// device и ip из /api/status попадают в innerHTML — экранируем (XSS-защита)
+function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
 
 function heart(ok) {
   const h = $('heart');
@@ -105,8 +107,8 @@ async function poll() {
     heart(true);
     $('clients').textContent = s.clients;
     $('events').innerHTML = (s.events && s.events.length)
-      ? s.events.map(e => '<li class="mut">' + e.at + ' · ' + e.ip
-          + (e.device ? ' · ' + e.device : '') + ' — '
+      ? s.events.map(e => '<li class="mut">' + esc(e.at) + ' · ' + esc(e.ip)
+          + (e.device ? ' · ' + esc(e.device) : '') + ' — '
           + (e.kind === 'join' ? 'подключился' : 'вышел из сети') + '</li>').join('')
       : '<li class="mut">событий не было</li>';
     const ver = 'v' + s.version;
@@ -114,7 +116,7 @@ async function poll() {
     const h = Math.floor(s.uptime / 3600), m = Math.floor(s.uptime % 3600 / 60);
     $('meta').textContent = ver + ' · uptime ' + (h ? h + ' ч ' : '') + m + ' мин';
     $('ips').innerHTML = (s.ips && s.ips.length)
-      ? s.ips.map(ip => '<li><a href="https://' + ip + ':8443">https://' + ip + ':8443</a></li>').join('')
+      ? s.ips.map(ip => '<li><a href="https://' + esc(ip) + ':8443">https://' + esc(ip) + ':8443</a></li>').join('')
       : '<li class="mut">нет подключённых сетей</li>';
     $('bakAuto').textContent = 'авто: ' + (s.backup_auto || '—');
     $('bakManual').textContent = 'вручную: ' + (s.backup_manual || '—');
