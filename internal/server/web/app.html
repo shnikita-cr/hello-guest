@@ -42,6 +42,11 @@ input:focus,select:focus{outline:2px solid var(--acc)}
 .mlist .row.arrived .mark{background:var(--ok)}
 .mlist button{background:#1f242c}
 .memdel{background:none;border:0;color:var(--mut);font-size:20px;padding:0 2px;min-height:0;cursor:pointer}
+.memhandle{touch-action:none;cursor:grab;color:var(--mut);font-size:18px;padding:6px 4px;user-select:none;-webkit-user-select:none}
+.mlist .row.dragging{position:relative;z-index:5;border-color:var(--acc);box-shadow:0 6px 18px rgba(0,0,0,.45);opacity:.95}
+.mlist .row.droptarget{border-color:var(--acc)}
+.dropzone{border:1.5px dashed #3a424d;border-radius:12px;padding:20px 12px;text-align:center;color:var(--mut);font-size:14px;cursor:pointer;background:#171b21}
+.dropzone.on{border-color:var(--acc);background:#1e2836;color:var(--fg)}
 .chev{padding-left:8px;align-self:stretch;display:flex;align-items:center;justify-content:center}
 .chev::after{content:'';width:0;height:0;border-style:solid;border-width:10px 0 10px 16px;border-color:transparent transparent transparent var(--mut);transform-origin:8px 10px;transition:transform .15s}
 .chev.open::after{transform:rotate(90deg)}
@@ -169,7 +174,10 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
   </div>
   <div class="field">
     <label>Файл выгрузки CSV / XLSX</label>
-    <input id="srcFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    <div class="dropzone" id="srcDrop">
+      <input id="srcFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">
+      <div id="srcDropText">Перетащите файл сюда или нажмите, чтобы выбрать</div>
+    </div>
   </div>
   <button class="primary" onclick="doImport()">Импортировать файл</button>
   <h2 style="font-size:16px;margin-top:24px">Timepad API</h2>
@@ -266,6 +274,7 @@ function showPin(){
 function setActiveTab(id){['tabPin','tabList','tabAdd','tabStats','tabSrc'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));}
 function show(id){
   screen=id;updateTabAdd();
+  localStorage.setItem('hg_screen',id);
   ['app','eventPane','addPane','memPickPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
   // страница поиска «+ Участник» — не таб, остаёмся на «Списке»
   setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',memPickPane:'tabList',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
@@ -286,7 +295,11 @@ async function boot(){
   loadQueue();
   if(localStorage.getItem('hg_pick')){await pickEvent();return;}
   if(!event){await pickEvent();return;}
+  // F5: сначала запомнить, иначе enterEvent перезапишет show('app')
+  const sc=localStorage.getItem('hg_screen');
   await enterEvent(event);
+  if(sc==='statsPane')openStats();
+  else if(sc==='srcPane')openSrc();
 }
 
 function loadQueue(){try{queue=JSON.parse(localStorage.getItem('hg_queue')||'[]');}catch(e){queue=[];}}
@@ -545,7 +558,8 @@ function render(){
           // подпись одинакова у всех строк: билет команды у членов тот же, что у капитана
           const sub=`${esc(g.ticket_type||'')} ${g.ticket_number?'· '+esc(g.ticket_number):''}`;
           const del=mi>0?`<button class="memdel" data-del="${mi}" data-mi="${i}" aria-label="Убрать из состава">✕</button>`:'';
-          return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div>${del}</div>`;
+          const handle=mi>0?`<span class="memhandle" data-drag aria-label="Порядок">⠿</span>`:'';
+          return `<div class="row${x.on?' arrived':''}" data-mem="${mi}" data-mi="${i}"><div class="mark"></div><div class="nm">${esc(x.n)}${sub?`<div class="sub">${sub}</div>`:''}</div>${handle}${del}</div>`;
         }).join('');
         body=`<div class="mlist">${rows}<div style="display:flex;gap:8px;margin-top:8px"><button style="flex:1" onclick="openMemAdd('${g.id}')">+ Гость</button><button style="flex:1" onclick="openMemPick('${g.id}')">+ Участник</button></div></div>`;
       }
@@ -726,6 +740,83 @@ async function attachParticipant(g,hit){
   await pushMembers(g,m);
   await flushQueue();
 }
+
+// перетаскивание члена состава за ручку ⠿ (taч и мышь); капитан всегда остаётся первым
+let dragJustEnded=false;
+document.getElementById('list').addEventListener('pointerdown',e=>{
+  const h=e.target.closest('[data-drag]');
+  if(!h||e.button)return;
+  const row=h.closest('[data-mem]');
+  if(!row)return;
+  const i=+row.dataset.mi,mi=+row.dataset.mem;
+  if(mi<1)return;
+  const sy=e.clientY;
+  let k=null,rows=[];
+  row.classList.add('dragging');
+  try{row.setPointerCapture(e.pointerId);}catch(_){}
+  const move=ev=>{
+    ev.preventDefault();
+    row.style.transform='translateY('+(ev.clientY-sy)+'px)';
+    rows=[...document.querySelectorAll(`[data-mi="${i}"][data-mem]`)]
+      .filter(r=>+r.dataset.mem>0&&+r.dataset.mem!==mi)
+      .sort((a,b)=>+a.dataset.mem-+b.dataset.mem);
+    k=rows.length;
+    for(let n=0;n<rows.length;n++){
+      const rc=rows[n].getBoundingClientRect();
+      if(ev.clientY<rc.top+rc.height/2){k=n;break;}
+    }
+    rows.forEach((r,n)=>r.classList.toggle('droptarget',n===k&&k<rows.length));
+  };
+  const up=()=>{
+    window.removeEventListener('pointermove',move);
+    window.removeEventListener('pointerup',up);
+    window.removeEventListener('pointercancel',up);
+    row.classList.remove('dragging');row.style.transform='';
+    rows.forEach(r=>r.classList.remove('droptarget'));
+    dragJustEnded=true;
+    setTimeout(()=>{dragJustEnded=false;},0);
+    if(k!=null)reorderMember(i,mi,k);
+  };
+  window.addEventListener('pointermove',move,{passive:false});
+  window.addEventListener('pointerup',up);
+  window.addEventListener('pointercancel',up);
+});
+// новая позиция: k — сколько членов (без капитана и без перетаскиваемого) остались выше пальца
+async function reorderMember(i,mi,k){
+  const g=viewG[i];if(!g)return;
+  const arr=(g.members||[]).slice();
+  if(mi<1||mi>=arr.length)return;
+  const others=arr.map((_,x)=>x).filter(x=>x>0&&x!==mi);
+  let insert=arr.length;
+  if(k<others.length){const before=others[k];insert=before-(before>mi?1:0);}
+  const [moved]=arr.splice(mi,1);
+  arr.splice(Math.min(insert,arr.length),0,moved);
+  if(JSON.stringify(arr)===JSON.stringify(g.members||[]))return;
+  g.members=arr;
+  const b={event,guest_id:g.id,team:g.team||'',members:arr};
+  if(navigator.onLine){
+    try{await api('/api/team',{method:'POST',body:b});}catch(e){qpush({t:'team',...b});}
+  }else qpush({t:'team',...b});
+  saveCache();render();await flushQueue();
+}
+
+// drag & drop выгрузки в поле файла
+(function(){
+  const dz=document.getElementById('srcDrop'),inp=document.getElementById('srcFile'),txt=document.getElementById('srcDropText');
+  const upd=()=>{const f=inp.files&&inp.files[0];txt.textContent=f?f.name+' — нажмите, чтобы заменить':'Перетащите файл сюда или нажмите, чтобы выбрать';};
+  inp.addEventListener('change',upd);
+  dz.addEventListener('click',()=>inp.click());
+  ['dragenter','dragover'].forEach(t=>dz.addEventListener(t,e=>{e.preventDefault();dz.classList.add('on');}));
+  dz.addEventListener('dragleave',()=>dz.classList.remove('on'));
+  dz.addEventListener('drop',e=>{
+    e.preventDefault();dz.classList.remove('on');
+    const fs=e.dataTransfer&&e.dataTransfer.files;
+    if(!fs||!fs.length)return;
+    try{const dt=new DataTransfer();dt.items.add(fs[0]);inp.files=dt.files;upd();}catch(_){txt.textContent='Не удалось принять файл — выберите вручную';}
+  });
+})();
+// браузер не должен открывать файл, если промахнулся мимо зоны
+['dragover','drop'].forEach(t=>window.addEventListener(t,e=>e.preventDefault()));
 
 async function flushQueue(){
   if(!queue.length||!navigator.onLine)return;
@@ -1095,6 +1186,8 @@ function loadVer(){const els=document.querySelectorAll('.ver');if(els.length&&[.
 loadVer();
 setInterval(()=>{if(!navigator.onLine)return setLive(false);api('/api/pin').then(()=>{setLive(true);loadVer();}).catch(e=>{if(e.message==='pin'){localStorage.removeItem('hg_pin');renderTabs();showPin();}else setLive(false);});},2500);
 document.getElementById('list').addEventListener('click',e=>{
+  // тап по ручке порядка или сразу после перетаскивания — не действие
+  if(e.target.closest('[data-drag]')||dragJustEnded){dragJustEnded=false;return;}
   const del=e.target.closest('[data-del]');
   if(del){removeMember(+del.dataset.mi,+del.dataset.del);return;}
   const pk=e.target.closest('[data-pick]');
