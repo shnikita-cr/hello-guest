@@ -269,6 +269,7 @@ function showPin(){
 function setActiveTab(id){['tabPin','tabList','tabAdd','tabStats','tabSrc'].forEach(x=>document.getElementById(x).classList.toggle('on',x===id));}
 function show(id){
   screen=id;updateTabAdd();
+  localStorage.setItem('hg_screen',id);
   ['app','eventPane','addPane','memPickPane','statsPane','srcPane','qrPane'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));
   // страница поиска «+ Участник» — не таб, остаёмся на «Списке»
   setActiveTab({app:'tabList',eventPane:'tabList',addPane:'tabAdd',memPickPane:'tabList',statsPane:'tabStats',srcPane:'tabSrc'}[id]);
@@ -289,7 +290,11 @@ async function boot(){
   loadQueue();
   if(localStorage.getItem('hg_pick')){await pickEvent();return;}
   if(!event){await pickEvent();return;}
+  // F5: сначала запомнить, иначе enterEvent перезапишет show('app')
+  const sc=localStorage.getItem('hg_screen');
   await enterEvent(event);
+  if(sc==='statsPane')openStats();
+  else if(sc==='srcPane')openSrc();
 }
 
 function loadQueue(){try{queue=JSON.parse(localStorage.getItem('hg_queue')||'[]');}catch(e){queue=[];}}
