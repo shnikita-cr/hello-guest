@@ -119,7 +119,7 @@ button.mini{min-height:52px;min-width:52px;padding:0 14px;font-size:20px}
 <div id="addPane" class="pane hide">
   <div id="offlineBar3" class="offline hide" style="margin:-12px -12px 12px">нет связи, <span id="queueN3">0</span> в очереди</div>
   <div style="display:flex;align-items:center;gap:8px"><h2 style="flex:1">Новый гость</h2><span id="liveDot4" class="dot">❤️</span></div>
-  <div class="field"><label>Имя *</label><input id="aName"></div>
+  <div class="field"><label>Имя Фамилия *</label><input id="aName"></div>
   <div class="field"><label>Телефон</label><input id="aPhone" type="tel"></div>
   <div class="field"><label>Email</label><input id="aEmail" type="email"></div>
   <div class="field"><label>Тип билета</label><select id="aType"><option value="">—</option></select></div>
@@ -661,7 +661,7 @@ function openMemAdd(id){
   const g=guests.find(x=>x.id===id);
   fillAddSelects(g);
   show('addPane');
-  document.getElementById('aType').value='Сольный билет';
+  document.getElementById('aType').value='Командный билет';
   document.getElementById('aTeam').value=memGroupName(id);
   document.getElementById('aName').focus();
 }
@@ -1005,9 +1005,19 @@ async function saveGuest(mark){
   const name=document.getElementById('aName').value.trim();
   if(!name){document.getElementById('addErr').textContent='Имя обязательно';return;}
   if(!event){document.getElementById('addErr').textContent='Сначала выберите мероприятие';return;}
+  const phone=document.getElementById('aPhone').value.trim();
+  const email=document.getElementById('aEmail').value.trim();
+  if(phone&&(!/^[()\d+\-\s]+$/.test(phone)||phone.replace(/\D/g,'').length<10)){
+    document.getElementById('addErr').textContent='Неверный телефон: укажите не меньше 10 цифр';
+    document.getElementById('aPhone').focus();return;
+  }
+  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){
+    document.getElementById('addErr').textContent='Неверный email: нужен вид имя@домен.ру';
+    document.getElementById('aEmail').focus();return;
+  }
   const payload={id:'walkin:'+Math.random().toString(36).slice(2,10),event,name,
-    phone:document.getElementById('aPhone').value.trim(),
-    email:document.getElementById('aEmail').value.trim(),
+    phone,
+    email,
     ticket_type:document.getElementById('aType').value.trim(),
     team:document.getElementById('aTeam').value.trim()};
   if(navigator.onLine){
@@ -1116,6 +1126,10 @@ document.getElementById('list').addEventListener('click',e=>{
 });
 syncView();
 document.getElementById('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')submitPin();});
+// выбор команды на странице нового гостя меняет тип билета
+document.getElementById('aTeam').addEventListener('change',e=>{
+  document.getElementById('aType').value=e.target.value?'Командный билет':'Сольный билет';
+});
 // service worker: при потере сети страница переживает свайп-обновление и F5
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))
   navigator.serviceWorker.register('/sw.js').catch(()=>{});
